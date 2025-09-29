@@ -35,7 +35,7 @@ const REFRESH_TOKEN_KEY = "refreshToken";
 const ACCESS_TOKEN_KEY = "accessToken";
 
 // Set this to your backend
-const API_URL = process.env.EXPO_BACKEND_API_URL ?? "http://localhost:3000/v1";
+const API_URL = process.env.EXPO_BACKEND_API_URL ?? "http://localhost:3000";
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
@@ -70,7 +70,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const refreshWithToken = useCallback(
     async (refreshToken: string) => {
-      const res = await fetch(`${API_URL}/auth/refresh`, {
+      const res = await fetch(`${API_URL}/v1/auth/refresh`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ refreshToken }),
@@ -100,7 +100,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const signIn = useCallback(
     async (email: string, password: string) => {
-      const res = await fetch(`${API_URL}/auth/login`, {
+      const res = await fetch(`${API_URL}/v1/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -130,7 +130,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       const { refreshToken } = await loadStoredTokens();
       if (refreshToken) {
         // Optional: revoke on server
-        void fetch(`${API_URL}/auth/logout`, {
+        void fetch(`${API_URL}/v1/auth/logout`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ refreshToken }),

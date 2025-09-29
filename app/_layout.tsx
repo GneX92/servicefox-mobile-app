@@ -3,6 +3,9 @@ import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { AuthProvider, useAuth } from "../src/auth/AuthContext";
 
+import { GluestackUIProvider } from '@/components/ui/gluestack-ui-provider';
+import '@/global.css';
+
 try {
   // Keep splash up until auth/bootstrap completes
   SplashScreen.preventAutoHideAsync();
@@ -19,11 +22,15 @@ function RootContent() {
 
   // Keep the tree mounted; routing will handle redirection
   return (
-    <Stack screenOptions={{ headerShown: false }}>
+    
+    <GluestackUIProvider mode="light">
+      <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(app)" />
       <Stack.Screen name="index" />
     </Stack>
+    </GluestackUIProvider>
+  
   );
 }
 

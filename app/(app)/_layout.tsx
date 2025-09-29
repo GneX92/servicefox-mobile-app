@@ -13,7 +13,7 @@ export default function AppLayout() {
   return (
     <Stack
       screenOptions={{
-        headerTitle: "My App",
+        headerTitle: "Termine / Einsätze",
         headerBackVisible: false,
       }}
     />

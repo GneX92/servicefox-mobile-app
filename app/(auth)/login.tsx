@@ -1,13 +1,12 @@
-import React, { useState } from "react";
-import {
-    ActivityIndicator,
-    Pressable,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
-} from "react-native";
-import { useAuth } from "../../src/auth/AuthContext";
+import React, { useState } from 'react';
+import { Image, View } from 'react-native';
+import WtkLogo from '../../assets/images/wtk.svg';
+import { Alert, AlertIcon, AlertText } from '../../components/ui/alert';
+import { Button, ButtonSpinner, ButtonText } from '../../components/ui/button';
+import { FormControl, FormControlLabel, FormControlLabelText } from '../../components/ui/form-control';
+import { AtSignIcon, EyeIcon, EyeOffIcon, LockIcon } from '../../components/ui/icon';
+import { Input, InputField, InputIcon, InputSlot } from '../../components/ui/input';
+import { useAuth } from '../../src/auth/AuthContext';
 
 export default function LoginScreen() {
   const { signIn } = useAuth();
@@ -15,6 +14,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   const onSubmit = async () => {
     setError(null);
@@ -30,67 +30,86 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Welcome</Text>
+    <View className="flex-1 bg-background-0 px-6 py-8">
+      <View className="flex-1 justify-center">
+        <View className="items-center mb-6">
+          <Image
+            source={require('../../assets/images/servicefox.png')}
+            style={{ width: 300, height: 300 }}
+            resizeMode="contain"
+          />
+        </View>
 
-      <TextInput
-        value={email}
-        onChangeText={setEmail}
-        placeholder="Email"
-        autoCapitalize="none"
-        keyboardType="email-address"
-        style={styles.input}
-      />
-      <TextInput
-        value={password}
-        onChangeText={setPassword}
-        placeholder="Password"
-        secureTextEntry
-        style={styles.input}
-      />
+        <View className="gap-5">
+        <FormControl size="lg">
+          <FormControlLabel>
+            <FormControlLabelText>Email</FormControlLabelText>
+          </FormControlLabel>
+          <Input size="lg">
+            <InputSlot className="pl-3">
+              <InputIcon as={AtSignIcon} />
+            </InputSlot>
+            <InputField
+              value={email}
+              onChangeText={setEmail}
+              placeholder="name@waterkotte.de"
+              autoCapitalize="none"
+              keyboardType="email-address"
+              textContentType="emailAddress"
+              autoComplete="email"
+            />
+          </Input>
+        </FormControl>
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+        <FormControl size="lg">
+          <FormControlLabel>
+            <FormControlLabelText>Password</FormControlLabelText>
+          </FormControlLabel>
+          <Input size="lg">
+            <InputSlot className="pl-3">
+              <InputIcon as={LockIcon} />
+            </InputSlot>
+            <InputField
+              value={password}
+              onChangeText={setPassword}
+              placeholder="password"
+              secureTextEntry={!showPassword}
+              textContentType="password"
+              autoComplete="password"
+            />
+            <InputSlot
+              className="pr-3"
+              onPress={() => setShowPassword((s) => !s)}
+              accessibilityRole="button"
+              accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+            >
+              <InputIcon as={showPassword ? EyeOffIcon : EyeIcon} />
+            </InputSlot>
+          </Input>
+        </FormControl>
 
-      <Pressable
-        onPress={onSubmit}
-        style={[styles.button, submitting && styles.buttonDisabled]}
-        disabled={submitting}
-      >
-        {submitting ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.buttonText}>Log in</Text>
-        )}
-      </Pressable>
+        {error ? (
+          <Alert action="error" variant="solid">
+            <AlertIcon as={EyeOffIcon} />
+            <AlertText>{error}</AlertText>
+          </Alert>
+        ) : null}
+
+        <Button onPress={onSubmit} disabled={submitting} action="primary" size="lg">
+          {submitting ? (
+            <>
+              <ButtonSpinner />
+              <ButtonText>Logging in…</ButtonText>
+            </>
+          ) : (
+            <ButtonText>Log in</ButtonText>
+          )}
+        </Button>
+        </View>
+      </View>
+      <View className="items-center mt-8 opacity-80">
+        <WtkLogo width={300} height={78} />
+      </View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    gap: 12,
-    padding: 20,
-    alignItems: "stretch",
-    justifyContent: "center",
-    backgroundColor: "#fff",
-  },
-  title: { fontSize: 28, fontWeight: "700", marginBottom: 12 },
-  input: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    fontSize: 16,
-  },
-  error: { color: "#b00020" },
-  button: {
-    backgroundColor: "#111827",
-    paddingVertical: 14,
-    borderRadius: 10,
-    alignItems: "center",
-  },
-  buttonDisabled: { opacity: 0.7 },
-  buttonText: { color: "#fff", fontSize: 16, fontWeight: "600" },
-});
