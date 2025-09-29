@@ -13,8 +13,9 @@ export default function AppLayout() {
   return (
     <Stack
       screenOptions={{
-        headerTitle: "Termine / Einsätze",
+        headerTitle: "Serviceeinsätze",
         headerBackVisible: false,
+        headerTitleAlign: "center",
       }}
     />
   );

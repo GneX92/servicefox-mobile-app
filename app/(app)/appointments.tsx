@@ -1,5 +1,5 @@
 import { LegendList, LegendListRenderItemProps } from "@legendapp/list";
-import { CalendarDays, Clock, Minus } from 'lucide-react-native';
+import { CalendarDays, Clock, MapPinHouse, Minus } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Badge, BadgeText } from "../../components/ui/badge";
@@ -9,10 +9,14 @@ import { useAuth } from "../../src/auth/AuthContext";
 
 type Appointment = {
   id: number;
+  title: string;
   reference: string;
   startTime?: string;
   endTime?: string;
   priority?: boolean;
+  street?: string;
+  postalCode?: string;
+  city?: string;
   [key: string]: any;
 };
 
@@ -121,19 +125,28 @@ export default function AppointmentsScreen() {
       const startVal = item.startTime;
       const endVal = item.endTime;
       const priority = isPriority(item.priority);
-      console.log('priority raw:', { priority: item.priority });
-      console.log('computed priority:', isPriority(item.priority));
+      const location = item.street ? item.street + ", " + item.postalCode + " " + item.city : "-";
+
       return (
         <Card className="p-4 bg-white rounded-lg border border-background-200">
           <View className="flex-row items-center justify-between mb-2">
             <Text className="text-base font-semibold text-typography-800" numberOfLines={1}>
-              {item.reference}
+              {item.title}
             </Text>
             {priority ? (
               <Badge action="error" variant="solid" size="sm">
                 <BadgeText size="sm" style={styles.badgeText}>Prio</BadgeText>
               </Badge>
             ) : null}
+          </View>
+          <View className="flex-row items-center mb-2">
+            <View className="flex-row items-center gap-2 flex-1" style={{ minWidth: 0 }}>
+              <Text className="text-typography-800">Kommission: {item.reference}</Text>
+            </View>           
+          </View>
+          <View className="flex-row items-center gap-1 flex-shrink-0 mb-2">
+              <MapPinHouse size={16} color="#374151" />
+              <Text className="text-typography-800">{location}</Text>
           </View>
           <View className="flex-row items-center justify-between">
             <View className="flex-row items-center gap-2 flex-1" style={{ minWidth: 0 }}>
@@ -192,7 +205,7 @@ export default function AppointmentsScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
-        <Text style={styles.title}>Termine / Einsätze</Text>
+        <Text style={styles.title}>Nächste 7 Tage</Text>
         <Pressable onPress={signOut} style={styles.button}>
           <Text style={styles.buttonText}>Abmelden</Text>
         </Pressable>
@@ -218,7 +231,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     gap: 12,
   },
-  title: { fontSize: 22, fontWeight: "600" },
+  title: { fontSize: 22, fontWeight: "600", color: "#3B8724" },
   button: {
     backgroundColor: "#dc2626",
     paddingVertical: 8,

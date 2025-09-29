@@ -3,8 +3,8 @@ import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { AuthProvider, useAuth } from "../src/auth/AuthContext";
 
-import { GluestackUIProvider } from '@/components/ui/gluestack-ui-provider';
-import '@/global.css';
+import { GluestackUIProvider } from '../components/ui/gluestack-ui-provider';
+import '../global.css';
 
 try {
   // Keep splash up until auth/bootstrap completes
