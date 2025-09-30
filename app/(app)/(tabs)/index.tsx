@@ -1,11 +1,11 @@
 import { LegendList, LegendListRenderItemProps } from "@legendapp/list";
 import { CalendarDays, Clock, MapPinHouse, Minus } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Badge, BadgeText } from "../../components/ui/badge";
-import { Card } from "../../components/ui/card";
-import { Spinner } from "../../components/ui/spinner";
-import { useAuth } from "../../src/auth/AuthContext";
+import { StyleSheet, Text, View } from "react-native";
+import { Badge, BadgeText } from "../../../components/ui/badge";
+import { Card } from "../../../components/ui/card";
+import { Spinner } from "../../../components/ui/spinner";
+import { useAuth } from "../../../src/auth/AuthContext";
 
 type Appointment = {
   id: number;
@@ -206,9 +206,9 @@ export default function AppointmentsScreen() {
     <View style={styles.container}>
       <View style={styles.headerRow}>
         <Text style={styles.title}>Nächste 7 Tage</Text>
-        <Pressable onPress={signOut} style={styles.button}>
+        {/* <Pressable onPress={signOut} style={styles.button}>
           <Text style={styles.buttonText}>Abmelden</Text>
-        </Pressable>
+        </Pressable> */}
       </View>
       <View style={{ flex: 1 }}>{content}</View>
     </View>

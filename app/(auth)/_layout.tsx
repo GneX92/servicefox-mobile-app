@@ -7,7 +7,7 @@ export default function AuthLayout() {
   const router = useRouter();
 
   useEffect(() => {
-    if (session) router.replace("/(app)/appointments" as RelativePathString);
+    if (session) router.replace("/(app)/(tabs)" as RelativePathString);
   }, [session, router]);
 
   return <Stack screenOptions={{ headerShown: false }} />;

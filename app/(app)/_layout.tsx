@@ -13,10 +13,12 @@ export default function AppLayout() {
   return (
     <Stack
       screenOptions={{
-        headerTitle: "Serviceeinsätze",
+        headerTitle: "Servicefox",
         headerBackVisible: false,
-        headerTitleAlign: "center",
+        headerTitleAlign: "center",        
       }}
-    />
+    >
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+    </Stack>
   );
 }

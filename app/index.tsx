@@ -11,6 +11,6 @@ export default function Index() {
   }
 
   return (
-    <Redirect href={session ? "/(app)/appointments" as any : "/(auth)/login" as any} />
+    <Redirect href={session ? "/(app)/(tabs)" as any : "/(auth)/login" as any} />
   );
 }
