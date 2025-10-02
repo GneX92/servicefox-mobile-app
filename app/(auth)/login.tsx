@@ -102,7 +102,7 @@ export default function LoginScreen() {
               <ButtonText>Logging in…</ButtonText>
             </>
           ) : (
-            <ButtonText>Log in</ButtonText>
+            <ButtonText style={{ color: "white"}}>Log in</ButtonText>
           )}
         </Button>
         </View>

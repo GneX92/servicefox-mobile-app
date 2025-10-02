@@ -1,10 +1,11 @@
 import { LegendList, LegendListRenderItemProps } from "@legendapp/list";
+import { Image } from "expo-image";
+import { useRouter } from "expo-router";
 import { CalendarDays, Clock, MapPinHouse, Minus } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Badge, BadgeText } from "../../../components/ui/badge";
 import { Card } from "../../../components/ui/card";
-import { Spinner } from "../../../components/ui/spinner";
 import { useAuth } from "../../../src/auth/AuthContext";
 
 type Appointment = {
@@ -13,7 +14,7 @@ type Appointment = {
   reference: string;
   startTime?: string;
   endTime?: string;
-  priority?: boolean;
+  priority?: number;
   street?: string;
   postalCode?: string;
   city?: string;
@@ -23,10 +24,11 @@ type Appointment = {
 const API_URL = process.env.EXPO_BACKEND_API_URL ?? "http://localhost:3000";
 
 export default function AppointmentsScreen() {
-  const { session, signOut } = useAuth();
+  const { session } = useAuth();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
   const accessToken = session?.accessToken;
 
@@ -55,6 +57,7 @@ export default function AppointmentsScreen() {
     if (isToday(d)) return "Heute";
     if (isTomorrow(d)) return "Morgen";
     return d.toLocaleDateString("de-DE", {
+      weekday: "long",
       day: "numeric",
       month: "short",
     }).replace(/\s/g, '\u00A0');
@@ -68,7 +71,8 @@ export default function AppointmentsScreen() {
   }, []);
 
   const isPriority = useCallback((v: Appointment["priority"]) => {
-    return v;
+    if (v === 1) return true;
+    return false;
   }, []);
 
   const keyExtractor = useCallback((item: Appointment, index: number) => {
@@ -128,51 +132,60 @@ export default function AppointmentsScreen() {
       const location = item.street ? item.street + ", " + item.postalCode + " " + item.city : "-";
 
       return (
-        <Card className="p-4 bg-white rounded-lg border border-background-200">
-          <View className="flex-row items-center justify-between mb-2">
-            <Text className="text-base font-semibold text-typography-800" numberOfLines={1}>
-              {item.title}
-            </Text>
-            {priority ? (
-              <Badge action="error" variant="solid" size="sm">
-                <BadgeText size="sm" style={styles.badgeText}>Prio</BadgeText>
-              </Badge>
-            ) : null}
-          </View>
-          <View className="flex-row items-center mb-2">
-            <View className="flex-row items-center gap-2 flex-1" style={{ minWidth: 0 }}>
-              <Text className="text-typography-800">Kommission: {item.reference}</Text>
-            </View>           
-          </View>
-          <View className="flex-row items-center gap-1 flex-shrink-0 mb-2">
-              <MapPinHouse size={16} color="#374151" />
-              <Text className="text-typography-800">{location}</Text>
-          </View>
-          <View className="flex-row items-center justify-between">
-            <View className="flex-row items-center gap-2 flex-1" style={{ minWidth: 0 }}>
-              <CalendarDays size={16} color="#374151" />
-              <Text className="text-typography-800" numberOfLines={1} ellipsizeMode="tail">{formatDate(startVal)}</Text>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => {
+            if (item.id != null) {
+              router.push((`/(app)/appointment/${String(item.id)}` as any));
+            }
+          }}
+        >
+          <Card className="p-4 bg-white rounded-lg border" style={{ borderColor: '#CCCED9', borderWidth: 1 }}>
+            <View className="flex-row items-center justify-between mb-2">
+              <Text className="text-base font-semibold text-typography-800" numberOfLines={1}>
+                {item.title}
+              </Text>
+              {priority ? (
+                <Badge action="error" variant="solid" size="sm">
+                  <BadgeText size="sm" style={styles.badgeText}>Prio</BadgeText>
+                </Badge>
+              ) : null}
             </View>
-            <View className="flex-row items-center gap-1 flex-shrink-0 ">              
-                <Clock size={16} color="#374151" />
-                <Text className="text-typography-800">{formatTime(startVal)}</Text>            
-                <Minus size={16} color="#374151" />
-                <Text className="text-typography-800">{formatTime(endVal)}</Text> 
-                <Text className="text-typography-800">Uhr</Text>             
+            <View className="flex-row items-center mb-2">
+              <View className="flex-row items-center gap-2 flex-1" style={{ minWidth: 0 }}>
+                <Text className="text-typography-800">Kommission: {item.reference}</Text>
+              </View>           
             </View>
-          </View>
-        </Card>
+            <View className="flex-row items-center gap-1 flex-shrink-0 mb-2">
+                <MapPinHouse size={16} color="#374151" />
+                <Text className="text-typography-800">{location}</Text>
+            </View>
+            <View className="flex-row items-center justify-between">
+              <View className="flex-row items-center gap-2 flex-1" style={{ minWidth: 0 }}>
+                <CalendarDays size={16} color="#374151" />
+                <Text className="text-typography-800" numberOfLines={1} ellipsizeMode="tail">{formatDate(startVal)}</Text>
+              </View>
+              <View className="flex-row items-center gap-1 flex-shrink-0 ">              
+                  <Clock size={16} color="#374151" />
+                  <Text className="text-typography-800">{formatTime(startVal)}</Text>            
+                  <Minus size={16} color="#374151" />
+                  <Text className="text-typography-800">{formatTime(endVal)}</Text> 
+                  <Text className="text-typography-800">Uhr</Text>             
+              </View>
+            </View>
+          </Card>
+        </Pressable>
       );
     },
-    [formatDate, formatTime, isPriority]
+    [formatDate, formatTime, isPriority, router]
   );
 
   const content = useMemo(() => {
     if (loading) {
       return (
         <View style={styles.center}>
-          <Spinner color="#0ea5e9" />
-          <Text style={styles.loadingText}>Loading appointments…</Text>
+          <Image source={require("../../../assets/images/loading.gif")} style={{ width: 300, height: 300 }} autoplay />
+          <Text style={styles.loadingText}>Loading…</Text>
         </View>
       );
     }
@@ -220,7 +233,7 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 12,
     padding: 16,
-    backgroundColor: "#ffffff",
+    backgroundColor: "#F1F2F5",
   },
   headerRow: {
     flexDirection: "row",
@@ -231,7 +244,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     gap: 12,
   },
-  title: { fontSize: 22, fontWeight: "600", color: "#3B8724" },
+  title: { fontSize: 22, fontWeight: "600", color: "#449F29" },
   button: {
     backgroundColor: "#dc2626",
     paddingVertical: 8,

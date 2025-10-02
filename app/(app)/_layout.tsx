@@ -19,6 +19,7 @@ export default function AppLayout() {
       }}
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="appointment/[id]" options={{ title: "Einsatzdetails", headerBackVisible: true }} />
     </Stack>
   );
 }

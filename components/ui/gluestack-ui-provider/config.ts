@@ -101,7 +101,7 @@ export const config = {
     '--color-info-950': '3 38 56',
 
     /* Typography */
-  '--color-typography-0': '255 255 255',
+  '--color-typography-0': '59 135 36',
     '--color-typography-50': '245 245 245',
     '--color-typography-100': '229 229 229',
     '--color-typography-200': '219 219 220',
@@ -110,7 +110,7 @@ export const config = {
     '--color-typography-500': '140 140 140',
     '--color-typography-600': '115 115 115',
     '--color-typography-700': '82 82 82',
-    '--color-typography-800': '64 64 64',
+    '--color-typography-800': '133 135 150',
     '--color-typography-900': '38 38 39',
     '--color-typography-950': '23 23 23',
 
@@ -253,7 +253,7 @@ export const config = {
     '--color-info-950': '236 248 254',
 
     /* Typography */
-    '--color-typography-0': '23 23 23',
+    '--color-typography-0': '59 135 36',
     '--color-typography-50': '38 38 39',
     '--color-typography-100': '64 64 64',
     '--color-typography-200': '82 82 82',
