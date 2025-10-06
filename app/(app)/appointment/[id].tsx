@@ -36,11 +36,12 @@ type Appointment = {
   [key: string]: any;
 };
 
-const API_URL = process.env.EXPO_BACKEND_API_URL ?? "http://localhost:3000";
+const API_URL = process.env.EXPO_PUBLIC_BACKEND_API_URL 
+// ?? "http://localhost:3000";
 
 export default function AppointmentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { session } = useAuth();
+  const { session, apiFetch } = useAuth();
   const [appointment, setAppointment] = useState<Appointment | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -56,9 +57,7 @@ export default function AppointmentDetailScreen() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`${API_URL}/appointments/${encodeURIComponent(id)}`, {
-          headers: { Authorization: `Bearer ${session.accessToken}` },
-        });
+        const res = await apiFetch(`${API_URL}/appointments/${encodeURIComponent(id)}`);
         if (!res.ok) {
           const text = await res.text();
           throw new Error(text || `Failed to fetch (${res.status})`);
@@ -75,7 +74,7 @@ export default function AppointmentDetailScreen() {
     return () => {
       cancelled = true;
     };
-  }, [id, session?.accessToken]);
+  }, [id, session?.accessToken, apiFetch]);
 
   {/* v Utility functions v */}
 
@@ -98,28 +97,21 @@ export default function AppointmentDetailScreen() {
     if (!email) return;
     Linking.openURL(`mailto:${email}`).catch(() => {});
   };
-  const openCalendar = (start?: string, end?: string, title?: string, location?: string, notes?: string) => {
-    if (!start) return;
-    const s = new Date(start);
-    const e = end ? new Date(end) : new Date(s.getTime() + 60 * 60 * 1000);
-    const url = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title ?? "Termin")}&dates=${s.toISOString().replace(/[-:]|\.\d{3}/g, "")}/${e.toISOString().replace(/[-:]|\.\d{3}/g, "")}&details=${encodeURIComponent(notes ?? "")}&location=${encodeURIComponent(location ?? "")}&sf=true&output=xml`;
-    Linking.openURL(url).catch(() => {});
-  };
 
   const renderPriorityBadge = (v: number | undefined) => {
     if (v === 1) return (
-      <Badge className="bg-red-500 rounded" action="error" variant="solid" size="lg">
-        <BadgeText className="text-typography-0" size="lg" style={styles.center}>Prio</BadgeText>
+      <Badge className="bg-red-500 rounded" action="error" variant="solid" size="lg" style={styles.badgeStyle}>
+        <BadgeText className="text-typography-0" size="lg" style={styles.badgeText}>Prio</BadgeText>
       </Badge>
     )
     if (v === 2) return (
-      <Badge className="bg-yellow-500 rounded" action="warning" variant="solid" size="lg">
-        <BadgeText className="text-typography-0" size="lg" style={{ ...styles.center, color: "white" }}>Normal</BadgeText>
+      <Badge className="bg-yellow-500 rounded" action="warning" variant="solid" size="lg" style={styles.badgeStyle}>
+        <BadgeText className="text-typography-0" size="lg" style={styles.badgeText}>Normal</BadgeText>
       </Badge>
     )
     return (
-      <Badge className="bg-gray-500 rounded" action="default" variant="solid" size="lg">
-        <BadgeText className="text-white" size="lg" style={styles.center}>Keine</BadgeText>
+      <Badge className="bg-gray-500 rounded" action="default" variant="solid" size="lg" style={styles.badgeStyle}>
+        <BadgeText className="text-white" size="lg" style={styles.badgeText}>Keine</BadgeText>
       </Badge>
     )
   };
@@ -164,13 +156,20 @@ export default function AppointmentDetailScreen() {
       );
     }
     if (error) {
-      const err = JSON.parse(error);
+      let parsed: any = null;
+      if (error.startsWith('{')) {
+        try { parsed = JSON.parse(error); } catch { /* ignore */ }
+      }
       return (
         <View style={[styles.center, { paddingHorizontal: 16 }] }>
           <Alert action="error" variant="solid" style={{ backgroundColor: "#ffcccc" }}>
             <CloudAlert size={32} color="#cf2a2a" />
-            <AlertText className="text-error-500 font-bold">{err.error}</AlertText>
-            <AlertText className="text-error-500">{err.message}</AlertText>
+            <AlertText className="text-error-500 font-bold">
+              {parsed?.error || 'Fehler'}
+            </AlertText>
+            <AlertText className="text-error-500">
+              {parsed?.message || error}
+            </AlertText>
           </Alert>
         </View>
       );
@@ -275,7 +274,7 @@ export default function AppointmentDetailScreen() {
                 </TableHead>
                 <TableData className="font-normal text-left p-3">
                   <View style={{ flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
-                    {display(appointment?.installerCompany)}
+                    <Text>{display(appointment?.installerCompany)}</Text>
                   </View>
                 </TableData>
               </TableRow>
@@ -285,7 +284,7 @@ export default function AppointmentDetailScreen() {
                 </TableHead>
                 <TableData className="font-normal text-left p-3">
                   <View style={{ flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
-                    {display(appointment?.clientCompany)}
+                    <Text>{display(appointment?.clientCompany)}</Text>
                   </View>
                 </TableData>
               </TableRow>
@@ -344,7 +343,8 @@ export default function AppointmentDetailScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, backgroundColor: "#449F29" },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8 },
-  badgeText: { fontWeight: "bold", textAlign: "center" },
+  badgeText: { fontWeight: "bold", textAlign: "center", color: "white" },
+  badgeStyle: { alignSelf: "flex-start", flexShrink: 1 },
   tableHead: { fontWeight: "600", color: "#374151", textAlign: "left" },
   tableData: { textAlign: "left" },
   cardTitlebar: {

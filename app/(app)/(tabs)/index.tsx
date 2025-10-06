@@ -21,10 +21,11 @@ type Appointment = {
   [key: string]: any;
 };
 
-const API_URL = process.env.EXPO_BACKEND_API_URL ?? "http://localhost:3000";
+const API_URL = process.env.EXPO_PUBLIC_BACKEND_API_URL 
+// ?? "http://localhost:3000";
 
 export default function AppointmentsScreen() {
-  const { session } = useAuth();
+  const { session, apiFetch } = useAuth();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -93,11 +94,7 @@ export default function AppointmentsScreen() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`${API_URL}/appointments`, {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        });
+        const res = await apiFetch(`${API_URL}/appointments`);
         if (!res.ok) {
           const text = await res.text();
           throw new Error(text || `Failed to fetch (${res.status})`);
@@ -122,7 +119,7 @@ export default function AppointmentsScreen() {
     return () => {
       cancelled = true;
     };
-  }, [accessToken]);
+  }, [accessToken, apiFetch]);
 
   const renderItem = useCallback(
     ({ item }: LegendListRenderItemProps<Appointment>) => {
@@ -184,7 +181,7 @@ export default function AppointmentsScreen() {
     if (loading) {
       return (
         <View style={styles.center}>
-          <Image source={require("../../../assets/images/loading.gif")} style={{ width: 300, height: 300 }} autoplay />
+          <Image source={require("../../../assets/images/loading.gif")} style={{ width: 300, height: 300, borderRadius: 6 }} autoplay />
           <Text style={styles.loadingText}>Loading…</Text>
         </View>
       );
@@ -211,6 +208,7 @@ export default function AppointmentsScreen() {
         recycleItems
         maintainVisibleContentPosition
         contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
       />
     );
   }, [appointments, error, keyExtractor, loading, renderItem]);

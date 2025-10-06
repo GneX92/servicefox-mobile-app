@@ -13,13 +13,23 @@ export default function AppLayout() {
   return (
     <Stack
       screenOptions={{
-        headerTitle: "Servicefox",
-        headerBackVisible: false,
-        headerTitleAlign: "center",        
+        headerTitleAlign: "center",
+        // No global headerTitle so detail screens can specify their own.
       }}
     >
+      {/* Tabs hide their own header; tab screens provide list view etc. */}
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="appointment/[id]" options={{ title: "Einsatzdetails", headerBackVisible: true }} />
+      {/* Appointment detail screen with custom title and back button label */}
+      <Stack.Screen
+        name="appointment/[id]"
+        options={{
+          headerTitle: "Einsatzdetails",
+          // Show a back button (previous header title won't leak in as label)
+          headerBackTitle: "Zurück",
+          headerBackVisible: true,
+          headerTitleAlign: "center",
+        }}
+      />
     </Stack>
   );
 }

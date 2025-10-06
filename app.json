@@ -39,11 +39,20 @@
           }
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-web-browser",
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "backendUrl": "http://10.181.1.75:3000",
+      "router": {},
+      "eas": {
+        "projectId": "9358c075-b21b-4b37-b550-2f5e8800d273"
+      }
     }
   }
 }
