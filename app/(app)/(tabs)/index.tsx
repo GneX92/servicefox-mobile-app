@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Badge, BadgeText } from "../../../components/ui/badge";
 import { Card } from "../../../components/ui/card";
+import { useNotification } from "../../../context/NotificationContext";
 import { useAuth } from "../../../src/auth/AuthContext";
 
 type Appointment = {
@@ -25,6 +26,7 @@ const API_URL = process.env.EXPO_PUBLIC_BACKEND_API_URL
 // ?? "http://localhost:3000";
 
 export default function AppointmentsScreen() {
+  const { notification, expoPushToken, err } = useNotification();
   const { session, apiFetch } = useAuth();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState<boolean>(true);

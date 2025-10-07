@@ -1,7 +1,9 @@
+import { Platform } from 'react-native';
+import { DEVICE_ID_KEY, PUSH_TOKEN_KEY } from "../utils/pushNotifications";
 import { deleteItem, getItem, setItem } from "../utils/storage";
 
 import React, {
-  createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
+    createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
 } from "react";
 // Lightweight JWT exp decoder (no validation) for scheduling refresh.
 const decodeJwtExp = (token: string): number | null => {
@@ -107,6 +109,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       deleteItem(ACCESS_TOKEN_KEY),
       deleteItem(REFRESH_TOKEN_KEY),
       deleteItem(SESSION_ID_KEY),
+      deleteItem(PUSH_TOKEN_KEY), // clear stored push token on full credential reset
     ]);
   }, []);
 
@@ -188,8 +191,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const signOut = useCallback(async (): Promise<void> => {
     try {
       const { refreshToken } = await loadStoredTokens();
+      const accessToken = await getItem(ACCESS_TOKEN_KEY);
+      // Attempt push token revocation first (fire & forget)
+      const pushToken = await getItem(PUSH_TOKEN_KEY);
+      const deviceId = await getItem(DEVICE_ID_KEY);
+      if (pushToken) {
+        void fetch(`${API_URL}/push/register`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          },
+          body: JSON.stringify({ token: pushToken, platform: Platform.OS, deviceId }),
+        }).catch(() => {});
+      }
       if (refreshToken) {
-        // Optional: revoke on server
         void fetch(`${API_URL}/v1/auth/logout`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
