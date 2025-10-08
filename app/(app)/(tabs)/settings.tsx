@@ -54,7 +54,7 @@ export default function Settings() {
                         </View>
                     )}
                     {!showDetails && (
-                        <Text className="text-typography-500" style={{ fontSize: 12 }}>Long press anywhere to {showDetails ? 'hide' : 'show'} details</Text>
+                        <Text className="text-typography-500" style={{ fontSize: 12 }}></Text>
                     )}
                 </View>
             </Card>
