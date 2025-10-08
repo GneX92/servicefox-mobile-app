@@ -11,6 +11,7 @@ import React, {
 import { Platform } from "react-native";
 import { Toast } from "toastify-react-native";
 import { useAuth } from "../src/auth/AuthContext";
+import { API_BASE_URL, buildApiUrl } from "../src/config/api";
 import {
     getDeviceId,
     PUSH_TOKEN_FAILED_KEY,
@@ -81,7 +82,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     const MAX_RETRY_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 Stunden
     const RETRY_INTERVAL_MS = 15 * 60 * 1000; // 15 Minuten
     const firstFailureRef = useRef<number | null>(null); // Zeitstempel der ersten Fehlregistrierung
-    const API_URL = process.env.EXPO_PUBLIC_BACKEND_API_URL; // Backend Basis-URL
+    const API_URL = API_BASE_URL; // Zentralisierte Backend Basis-URL
 
     // --------------------------- Navigationshelfer --------------------------------
             const navigateToAppointmentDetail = React.useCallback(
@@ -159,7 +160,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
                 attempt += 1;
                 setRegistrationState((s) => ({ ...s, attempts: s.attempts + 1 }));
                 try {
-                    const response = await apiFetch(`${API_URL}/push/register`, {
+                    const response = await apiFetch(buildApiUrl(`/push/register`), {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
@@ -225,7 +226,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
             }));
             return false;
         },
-        [apiFetch, API_URL]
+    [apiFetch]
     );
 
     // Erster Registrierungsversuch sobald Token & Session vorhanden

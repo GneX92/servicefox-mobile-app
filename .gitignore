@@ -45,3 +45,6 @@ servicefox-mobile-firebase-adminsdk-fbsvc-5759af0c0a.json
 # generated native folders
 /ios
 /android
+
+# Misc
+CODE_REVIEW.md

@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import { Platform } from 'react-native';
 
+import { buildApiUrl } from "../config/api";
 import { DEVICE_ID_KEY, PUSH_TOKEN_KEY } from "../utils/pushNotifications";
 import { deleteItem, getItem, setItem } from "../utils/storage";
 
@@ -68,8 +69,6 @@ const REFRESH_TOKEN_STORAGE_KEY = "refreshToken";
 const ACCESS_TOKEN_STORAGE_KEY = "accessToken";
 const SESSION_ID_STORAGE_KEY = "sessionId";
 
-// Basis-URL des Backends (aus Expo Env Variablen). Kein Fallback
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_API_URL;
 
 // Mindestvorlauf vor Ablauf (ms) für Refresh.
 const REFRESH_LEAD_TIME_MS = 60_000; // 60s
@@ -140,7 +139,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     const sid = providedSessionId || session?.sessionId || (await getItem(SESSION_ID_STORAGE_KEY)) || undefined;
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (sid) headers["x-session-id"] = sid;
-    const res = await fetch(`${API_URL}/v1/auth/refresh`, {
+  const res = await fetch(buildApiUrl(`/v1/auth/refresh`), {
       method: "POST",
       headers,
       body: JSON.stringify({ refreshToken }),
@@ -178,7 +177,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Login mit Credentials.
   const signIn = useCallback(async (email: string, password: string): Promise<void> => {
-    const res = await fetch(`${API_URL}/v1/auth/login`, {
+  const res = await fetch(buildApiUrl(`/v1/auth/login`), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
@@ -206,7 +205,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
       // Push Token deregistrieren
       if (pushToken) {
-        void fetch(`${API_URL}/push/register`, {
+  void fetch(buildApiUrl(`/push/register`), {
           method: 'DELETE',
           headers: {
             'Content-Type': 'application/json',
@@ -218,7 +217,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
       // Serverseitiges Logout
       if (refreshToken) {
-        void fetch(`${API_URL}/v1/auth/logout`, {
+  void fetch(buildApiUrl(`/v1/auth/logout`), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ refreshToken }),

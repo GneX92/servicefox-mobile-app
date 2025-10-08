@@ -9,6 +9,7 @@ import { Badge, BadgeText } from "../../../components/ui/badge";
 import { Card } from "../../../components/ui/card";
 import { useNotification } from "../../../context/NotificationContext";
 import { useAuth } from "../../../src/auth/AuthContext";
+import { buildApiUrl } from "../../../src/config/api";
 
 // Grundstruktur eines Termins (Backend kann weitere Felder liefern)
 export interface Appointment {
@@ -25,8 +26,7 @@ export interface Appointment {
   [key: string]: any;
 }
 
-// Basis-API (über ENV). Kein Fallback, um ungewollte Requests lokal zu vermeiden.
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_API_URL;
+// API Basis-URL wird zentral verwaltet (kein direkter ENV Zugriff hier).
 
 // Mögliche Container-Keys unterschiedlicher Backend-Antworten
 const COLLECTION_KEYS = [
@@ -107,15 +107,10 @@ export default function AppointmentsScreen() {
         setError("Not authenticated");
         return;
       }
-      if (!API_URL) {
-        setLoading(false);
-        setError("API_URL nicht gesetzt");
-        return;
-      }
       setLoading(true);
       setError(null);
       try {
-        const res = await apiFetch(`${API_URL}/appointments`);
+  const res = await apiFetch(buildApiUrl(`/appointments`));
         if (!res.ok) {
           const text = await res.text();
           throw new Error(text || `Failed to fetch (${res.status})`);

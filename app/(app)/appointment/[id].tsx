@@ -11,6 +11,7 @@ import { Spinner } from "../../../components/ui/spinner";
 import { Table, TableBody, TableData, TableHead, TableRow } from "../../../components/ui/table";
 import { Text } from "../../../components/ui/text";
 import { useAuth } from "../../../src/auth/AuthContext";
+import { buildApiUrl } from "../../../src/config/api";
 
 type Appointment = {
   id: number;
@@ -36,8 +37,7 @@ type Appointment = {
   [key: string]: any;
 };
 
-// Basis-URL für Backend (Expo Env Variable)
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_API_URL;
+// API Basis-URL wird über buildApiUrl zusammengesetzt (zentralisierte Config)
 
 // Zentrale Farbkonstanten (leichtere Anpassung)
 const PRIMARY_BRAND = "#449F29"; // Haupt-Hintergrund / Primärfarbe
@@ -65,7 +65,7 @@ export default function AppointmentDetailScreen() {
       setLoading(true);
       setError(null);
       try {
-        const response = await apiFetch(`${API_URL}/appointments/${encodeURIComponent(id)}`);
+  const response = await apiFetch(buildApiUrl(`/appointments/${encodeURIComponent(id)}`));
         if (!response.ok) {
           const text = await response.text();
           throw new Error(text || `Failed to fetch (${response.status})`);
