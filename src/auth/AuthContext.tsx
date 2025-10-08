@@ -1,34 +1,53 @@
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Platform } from 'react-native';
+
 import { DEVICE_ID_KEY, PUSH_TOKEN_KEY } from "../utils/pushNotifications";
 import { deleteItem, getItem, setItem } from "../utils/storage";
 
-import React, {
-    createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
-} from "react";
-// Lightweight JWT exp decoder (no validation) for scheduling refresh.
+// ------------------------------------------------------------
+// Hilfsfunktionen & Typen
+// ------------------------------------------------------------
+
+// Leichtgewichtiger Decoder nur für 'exp' (keine Verifikation des JWT!).
+// Gibt Ablaufzeit (ms seit Epoch) oder null zurück.
 const decodeJwtExp = (token: string): number | null => {
   try {
     const [, payloadB64] = token.split(".");
     if (!payloadB64) return null;
-    const b64 = payloadB64.replace(/-/g, "+").replace(/_/g, "/");
+    const normalized = payloadB64.replace(/-/g, "+").replace(/_/g, "/");
     let json: string;
-    if (typeof atob === "function") json = atob(b64);
-    else if (typeof Buffer !== "undefined") json = Buffer.from(b64, "base64").toString("utf8");
-    else return null;
+    if (typeof atob === "function") json = atob(normalized);
+    else if (typeof Buffer !== "undefined") json = Buffer.from(normalized, "base64").toString("utf8");
+    else return null; // Kein Decoder verfügbar
     const payload = JSON.parse(json);
     return typeof payload.exp === "number" ? payload.exp * 1000 : null;
   } catch {
-    return null;
+    return null; // Defensiv: ungültiges Token ignorieren
   }
 };
 
-// (User type removed; not presently used.)
-
+// Sitzungstokens im Speicher / Kontext
 type Session = {
   accessToken: string;
   refreshToken: string;
   sessionId: string;
 };
+
+// Antwortstruktur vom Backend für Login/Refresh.
+interface TokenResponse {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number; // Sekunden (nur für Scheduling genutzt, aktuell wird 'exp' direkt aus dem JWT gelesen)
+  sessionId: string;
+}
 
 type AuthContextType = {
   isBootstrapping: boolean;
@@ -36,7 +55,6 @@ type AuthContextType = {
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
-  // Generic authenticated fetch helper; auto refresh + retry once.
   apiFetch: (
     input: RequestInfo | URL,
     init?: RequestInit & { skipAuth?: boolean }
@@ -45,156 +63,148 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-const REFRESH_TOKEN_KEY = "refreshToken";
-const ACCESS_TOKEN_KEY = "accessToken";
-const SESSION_ID_KEY = "sessionId";
+// Storage Schlüssel
+const REFRESH_TOKEN_STORAGE_KEY = "refreshToken";
+const ACCESS_TOKEN_STORAGE_KEY = "accessToken";
+const SESSION_ID_STORAGE_KEY = "sessionId";
 
-// Set this to your backend
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_API_URL; 
-// ?? "http://localhost:3000";
+// Basis-URL des Backends (aus Expo Env Variablen). Kein Fallback
+const API_URL = process.env.EXPO_PUBLIC_BACKEND_API_URL;
+
+// Mindestvorlauf vor Ablauf (ms) für Refresh.
+const REFRESH_LEAD_TIME_MS = 60_000; // 60s
+// Minimaler Delay um Endlos-Loops bei sofortigem Refresh zu vermeiden.
+const MIN_REFRESH_DELAY_MS = 5_000;
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const [isBootstrapping, setIsBootstrapping] = useState(true);
+  const [isBootstrapping, setIsBootstrapping] = useState(true); // true bis initiale Token-Prüfung fertig
   const [session, setSession] = useState<Session | null>(null);
-  // Timer stored in ref to avoid re-render loops when scheduling.
-  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Prevent parallel refresh calls that can invalidate a rotating refresh token.
-  const refreshInFlightRef = useRef<Promise<void> | null>(null);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null); // Geplanter Refresh
+  const refreshInFlightRef = useRef<Promise<void> | null>(null); // Verhindert parallele Refresh-Calls
 
-    const clearRefreshTimer = useCallback((): void => {
-      if (refreshTimerRef.current) {
-        clearTimeout(refreshTimerRef.current);
-        refreshTimerRef.current = null;
-      }
-    }, []);
+  // Löscht einen evtl. geplanten Refresh.
+  const clearRefreshTimer = useCallback((): void => {
+    if (refreshTimerRef.current) {
+      clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = null;
+    }
+  }, []);
 
-  const scheduleRefresh = useCallback((accessToken: string, refresher: () => Promise<void>): void => {
+  // Plant einen Refresh rechtzeitig vor Ablauf des Access Tokens.
+  const scheduleRefresh = useCallback((accessToken: string, refreshFn: () => Promise<void>): void => {
     clearRefreshTimer();
-    const expMs = decodeJwtExp(accessToken);
-    if (!expMs) return; // Can't schedule without exp
+    const expiresAt = decodeJwtExp(accessToken);
+    if (!expiresAt) return;
     const now = Date.now();
-    const lead = 60_000; // refresh 60s before expiry
-    let delay = expMs - now - lead;
-    if (delay < 5_000) delay = 5_000; // minimum 5s to avoid loops
+    let delay = expiresAt - now - REFRESH_LEAD_TIME_MS;
+    if (delay < MIN_REFRESH_DELAY_MS) delay = MIN_REFRESH_DELAY_MS;
     refreshTimerRef.current = setTimeout(() => {
-      refresher().catch(() => {});
+      refreshFn().catch(() => {}); // Fehler hier bewusst ignoriert
     }, delay);
   }, [clearRefreshTimer]);
 
+  // Liest Tokens aus persistentem Storage.
   const loadStoredTokens = useCallback(async () => {
     const [refreshToken, accessToken, sessionId] = await Promise.all([
-      getItem(REFRESH_TOKEN_KEY),
-      getItem(ACCESS_TOKEN_KEY),
-      getItem(SESSION_ID_KEY),
+      getItem(REFRESH_TOKEN_STORAGE_KEY),
+      getItem(ACCESS_TOKEN_STORAGE_KEY),
+      getItem(SESSION_ID_STORAGE_KEY),
     ]);
     return { refreshToken, accessToken, sessionId };
   }, []);
 
-  const persistTokens = useCallback(
-    async (accessToken: string, refreshToken: string, sessionId?: string) => {
-      const writes: Promise<void>[] = [
-        setItem(ACCESS_TOKEN_KEY, accessToken),
-        setItem(REFRESH_TOKEN_KEY, refreshToken),
-      ];
-      if (sessionId) writes.push(setItem(SESSION_ID_KEY, sessionId));
-      await Promise.all(writes);
-    },
-    []
-  );
+  // Speichert Tokens
+  const persistTokens = useCallback(async (accessToken: string, refreshToken: string, sessionId?: string) => {
+    const writes: Promise<void>[] = [
+      setItem(ACCESS_TOKEN_STORAGE_KEY, accessToken),
+      setItem(REFRESH_TOKEN_STORAGE_KEY, refreshToken),
+    ];
+    if (sessionId) writes.push(setItem(SESSION_ID_STORAGE_KEY, sessionId));
+    await Promise.all(writes);
+  }, []);
 
+  // Löscht alle sicherheitsrelevanten Tokens (inkl. Push Token).
   const clearTokens = useCallback(async () => {
     await Promise.all([
-      deleteItem(ACCESS_TOKEN_KEY),
-      deleteItem(REFRESH_TOKEN_KEY),
-      deleteItem(SESSION_ID_KEY),
-      deleteItem(PUSH_TOKEN_KEY), // clear stored push token on full credential reset
+      deleteItem(ACCESS_TOKEN_STORAGE_KEY),
+      deleteItem(REFRESH_TOKEN_STORAGE_KEY),
+      deleteItem(SESSION_ID_STORAGE_KEY),
+      deleteItem(PUSH_TOKEN_KEY), // Push Token zurücksetzen bei kompletter Abmeldung
     ]);
   }, []);
 
+  // Führt einen Refresh mit gegebenem Refresh Token aus.
   const refreshWithToken = useCallback(async (refreshToken: string, providedSessionId?: string): Promise<void> => {
-      const sid = providedSessionId || session?.sessionId || (await getItem(SESSION_ID_KEY)) || undefined;
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (sid) headers["x-session-id"] = sid;
-      const res = await fetch(`${API_URL}/v1/auth/refresh`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ refreshToken }),
-      });
-      if (!res.ok) {
-        // Surface textual server error if present for easier debugging.
-        const msg = await res.text().catch(() => "");
-        throw new Error(msg || "Refresh failed");
-      }
-      const data = (await res.json()) as {
-        accessToken: string;
-        refreshToken: string;
-        expiresIn: number;
-        sessionId: string;
-      };
-      await persistTokens(data.accessToken, data.refreshToken, data.sessionId);
-      setSession({
-        accessToken: data.accessToken,
-        refreshToken: data.refreshToken,
-        sessionId: data.sessionId,
-      });
-      // Schedule next refresh using the newly returned refresh token directly.
-      scheduleRefresh(data.accessToken, () => refreshWithToken(data.refreshToken));
+    const sid = providedSessionId || session?.sessionId || (await getItem(SESSION_ID_STORAGE_KEY)) || undefined;
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (sid) headers["x-session-id"] = sid;
+    const res = await fetch(`${API_URL}/v1/auth/refresh`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ refreshToken }),
+    });
+    if (!res.ok) {
+      const msg = await res.text().catch(() => "");
+      throw new Error(msg || "Refresh failed");
+    }
+    const data: TokenResponse = await res.json();
+    await persistTokens(data.accessToken, data.refreshToken, data.sessionId);
+    setSession({
+      accessToken: data.accessToken,
+      refreshToken: data.refreshToken,
+      sessionId: data.sessionId,
+    });
+    // Nächsten Refresh planen (rekursiver Verweis auf aktualisiertes Token)
+    scheduleRefresh(data.accessToken, () => refreshWithToken(data.refreshToken));
   }, [persistTokens, scheduleRefresh, session?.sessionId]);
 
+  // Öffentliche Refresh-Funktion (verhindert parallele Aufrufe).
   const refresh = useCallback(async (): Promise<void> => {
-    // Reuse in-flight promise to avoid double refresh with rotating tokens.
-    if (refreshInFlightRef.current) return refreshInFlightRef.current;
-    const p = (async () => {
+    if (refreshInFlightRef.current) return refreshInFlightRef.current; // Bereits laufend
+    const refreshPromise = (async () => {
       const { refreshToken, sessionId } = await loadStoredTokens();
       if (!refreshToken) throw new Error("No refresh token");
       await refreshWithToken(refreshToken, sessionId || undefined);
     })();
-    refreshInFlightRef.current = p;
+    refreshInFlightRef.current = refreshPromise;
     try {
-      await p;
+      await refreshPromise;
     } finally {
-      // Small delay to allow any awaiting apiFetch 401 retries to read new token before clearing.
-      refreshInFlightRef.current = null;
+      refreshInFlightRef.current = null; // Freigeben
     }
   }, [loadStoredTokens, refreshWithToken]);
 
-  const signIn = useCallback(
-    async (email: string, password: string): Promise<void> => {
-      const res = await fetch(`${API_URL}/v1/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      if (!res.ok) {
-        const msg = await res.text();
-        throw new Error(msg || "Login failed");
-      }
-      const data = (await res.json()) as {
-        accessToken: string;
-        refreshToken: string;
-        expiresIn: number;
-        sessionId: string;
-      };
-      await persistTokens(data.accessToken, data.refreshToken, data.sessionId);
-      setSession({
-        accessToken: data.accessToken,
-        refreshToken: data.refreshToken,
-        sessionId: data.sessionId,
-      });
-      scheduleRefresh(data.accessToken, () => refreshWithToken(data.refreshToken));
-    },
-    [persistTokens, scheduleRefresh, refreshWithToken]
-  );
+  // Login mit Credentials.
+  const signIn = useCallback(async (email: string, password: string): Promise<void> => {
+    const res = await fetch(`${API_URL}/v1/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!res.ok) {
+      const msg = await res.text();
+      throw new Error(msg || "Login failed");
+    }
+    const data: TokenResponse = await res.json();
+    await persistTokens(data.accessToken, data.refreshToken, data.sessionId);
+    setSession({
+      accessToken: data.accessToken,
+      refreshToken: data.refreshToken,
+      sessionId: data.sessionId,
+    });
+    scheduleRefresh(data.accessToken, () => refreshWithToken(data.refreshToken));
+  }, [persistTokens, scheduleRefresh, refreshWithToken]);
 
   const signOut = useCallback(async (): Promise<void> => {
     try {
       const { refreshToken } = await loadStoredTokens();
-      const accessToken = await getItem(ACCESS_TOKEN_KEY);
-      // Attempt push token revocation first (fire & forget)
+      const accessToken = await getItem(ACCESS_TOKEN_STORAGE_KEY);
       const pushToken = await getItem(PUSH_TOKEN_KEY);
       const deviceId = await getItem(DEVICE_ID_KEY);
+
+      // Push Token deregistrieren
       if (pushToken) {
         void fetch(`${API_URL}/push/register`, {
           method: 'DELETE',
@@ -205,6 +215,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           body: JSON.stringify({ token: pushToken, platform: Platform.OS, deviceId }),
         }).catch(() => {});
       }
+
+      // Serverseitiges Logout
       if (refreshToken) {
         void fetch(`${API_URL}/v1/auth/logout`, {
           method: "POST",
@@ -212,14 +224,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           body: JSON.stringify({ refreshToken }),
         });
       }
-    } catch {}
+    } catch {
+      // Schweigend ignorieren: lokaler Logout hat Vorrang.
+    }
     await clearTokens();
     setSession(null);
     clearRefreshTimer();
   }, [clearTokens, loadStoredTokens, clearRefreshTimer]);
 
+  // vorhandene Tokens prüfen & ggf. refreshen.
   useEffect(() => {
-    let cancelled = false;
+    let isCancelled = false;
     (async () => {
       try {
         const { refreshToken, sessionId } = await loadStoredTokens();
@@ -230,42 +245,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         await clearTokens();
         setSession(null);
       } finally {
-        if (!cancelled) setIsBootstrapping(false);
+        if (!isCancelled) setIsBootstrapping(false);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { isCancelled = true; };
   }, [clearTokens, loadStoredTokens, refreshWithToken]);
 
-  // Helper to wrap fetch with automatic header injection & refresh-on-401.
+  // Fetch Wrapper mit automatischer Auth & einmaligem Refresh-Versuch bei 401.
   const apiFetch = useCallback<AuthContextType["apiFetch"]>(async (input, init) => {
     const skipAuth = init?.skipAuth;
-    const token = session?.accessToken;
-    const doFetch = async (attemptRefresh: boolean): Promise<Response> => {
+    const currentAccess = session?.accessToken;
+
+    const performFetch = async (allowRefresh: boolean): Promise<Response> => {
       const headers = new Headers(init?.headers || {});
-  if (!skipAuth && token) headers.set("Authorization", `Bearer ${token}`);
-  if (!skipAuth && session?.sessionId) headers.set("x-session-id", session.sessionId);
-      const res = await fetch(input, { ...init, headers });
-      if (res.status === 401 && !skipAuth && attemptRefresh) {
+      if (!skipAuth && currentAccess) headers.set("Authorization", `Bearer ${currentAccess}`);
+      if (!skipAuth && session?.sessionId) headers.set("x-session-id", session.sessionId);
+      const response = await fetch(input, { ...init, headers });
+
+      if (response.status === 401 && !skipAuth && allowRefresh) {
         try {
           await refresh();
-          const newToken = (await getItem(ACCESS_TOKEN_KEY)) || session?.accessToken;
-          if (newToken) {
+          const latestAccess = (await getItem(ACCESS_TOKEN_STORAGE_KEY)) || session?.accessToken;
+          if (latestAccess) {
             const retryHeaders = new Headers(init?.headers || {});
-            retryHeaders.set("Authorization", `Bearer ${newToken}`);
+            retryHeaders.set("Authorization", `Bearer ${latestAccess}`);
+            if (session?.sessionId) retryHeaders.set("x-session-id", session.sessionId);
             return fetch(input, { ...init, headers: retryHeaders });
           }
         } catch {
-          // If refresh failed due to race (e.g., rotating token invalid), allow fall-through.
+          // Silent: fehlgeschlagener Refresh -> ursprüngliche 401 weiterreichen.
         }
       }
-      return res;
+      return response;
     };
-    return doFetch(true);
+    return performFetch(true);
   }, [session?.accessToken, session?.sessionId, refresh]);
 
-  // If session changes (e.g., after a manual refresh outside signIn), reschedule.
+  // Bei Token-Wechsel neu planen.
   useEffect(() => {
     if (session?.accessToken && session.refreshToken) {
       scheduleRefresh(session.accessToken, () => refreshWithToken(session.refreshToken));
@@ -283,7 +299,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 };
 
 export const useAuth = () => {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
-  return ctx;
+  const authContext = useContext(AuthContext);
+  if (!authContext) throw new Error("useAuth must be used within AuthProvider");
+  return authContext;
 };

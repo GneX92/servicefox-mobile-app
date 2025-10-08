@@ -8,34 +8,42 @@ import React, {
     useRef,
     useState,
 } from "react";
-import { Platform } from 'react-native';
-import { Toast } from 'toastify-react-native';
+import { Platform } from "react-native";
+import { Toast } from "toastify-react-native";
 import { useAuth } from "../src/auth/AuthContext";
-import { getDeviceId, PUSH_TOKEN_FAILED_KEY, PUSH_TOKEN_KEY } from "../src/utils/pushNotifications";
+import {
+    getDeviceId,
+    PUSH_TOKEN_FAILED_KEY,
+    PUSH_TOKEN_KEY,
+} from "../src/utils/pushNotifications";
 import { registerForPushNotificationsAsync } from "../src/utils/registerForPushNotificationsAsync";
 import { deleteItem, getItem, setItem } from "../src/utils/storage";
 
 interface NotificationContextType {
     expoPushToken: string | null;
     notification: Notifications.Notification | null;
-    err: Error | null;
+    err: Error | null; // öffentlicher Fehlerzustand (API unverändert lassen)
     pushRegistration: {
-        status: 'idle' | 'registering' | 'registered' | 'failed' | 'paused';
+        status: "idle" | "registering" | "registered" | "failed" | "paused";
         lastSuccessAt: number | null;
         lastFailureAt: number | null;
         failureMessage?: string;
-        attempts: number;
-        maxWindowExceeded: boolean;
+        attempts: number; // Anzahl aller Einzel-Versuche (Summiert Backoff-Retries)
+        maxWindowExceeded: boolean; // Ob Retry-Fenster (z.B. 24h) überschritten
     };
     retryPushRegistration: () => Promise<void>;
 }
 
-const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
+const NotificationContext = createContext<NotificationContextType | undefined>(
+    undefined
+);
 
 export const useNotification = (): NotificationContextType => {
     const context = useContext(NotificationContext);
     if (context === undefined) {
-        throw new Error("useNotification must be used within a NotificationProvider");
+        throw new Error(
+            "useNotification must be used within a NotificationProvider"
+        );
     }
     return context;
 };
@@ -44,171 +52,221 @@ interface NotificationProviderProps {
     children: ReactNode;
 }
 
-export const NotificationProvider: React.FC<NotificationProviderProps> = ({ children }) => {
+export const NotificationProvider: React.FC<NotificationProviderProps> = ({
+    children,
+}) => {
+    // --------------------------- Lokale Zustände ---------------------------------
     const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
-    const [notification, setNotification] = useState<Notifications.Notification | null>(null);
+    const [notification, setNotification] =
+        useState<Notifications.Notification | null>(null);
     const [err, setError] = useState<Error | null>(null);
-    const notificationListener = useRef<Notifications.EventSubscription | null>(null);
-    const responseListener = useRef<Notifications.EventSubscription | null>(null);
-    const router = useRouter();
+    const notificationSubscriptionRef =
+        useRef<Notifications.EventSubscription | null>(null);
+    const responseSubscriptionRef =
+        useRef<Notifications.EventSubscription | null>(null);
     const { session, apiFetch } = useAuth();
-    const registeringRef = useRef(false);
-    const [registrationState, setRegistrationState] = useState<NotificationContextType['pushRegistration']>({
-        status: 'idle',
-        lastSuccessAt: null,
-        lastFailureAt: null,
-        attempts: 0,
-        maxWindowExceeded: false,
-    });
+    const router = useRouter();
+    const registeringRef = useRef(false); // Flag um parallele Registrierungen zu verhindern
+    const [registrationState, setRegistrationState] =
+        useState<NotificationContextType["pushRegistration"]>({
+            status: "idle",
+            lastSuccessAt: null,
+            lastFailureAt: null,
+            attempts: 0,
+            maxWindowExceeded: false,
+        });
 
-    // Maximum wall-clock window (e.g., 24h) after first failure to keep retrying automatically
-    const MAX_RETRY_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
-    const RETRY_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
-    const firstFailureRef = useRef<number | null>(null);
+    // --------------------------- Konstanten & Refs --------------------------------
+    // Maximales Zeitfenster (24h) für automatische Retries ab erster Fehlregistrierung
+    const MAX_RETRY_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 Stunden
+    const RETRY_INTERVAL_MS = 15 * 60 * 1000; // 15 Minuten
+    const firstFailureRef = useRef<number | null>(null); // Zeitstempel der ersten Fehlregistrierung
+    const API_URL = process.env.EXPO_PUBLIC_BACKEND_API_URL; // Backend Basis-URL
 
-    const API_URL = process.env.EXPO_PUBLIC_BACKEND_API_URL;
+    // --------------------------- Navigationshelfer --------------------------------
+            const navigateToAppointmentDetail = React.useCallback(
+                (appointmentId: string | number) => {
+                    if (!appointmentId) return; // kein Ziel -> Abbruch
+                    router.push(`/appointment/${appointmentId}`);
+                    Toast.hide();
+                },
+                [router]
+            );
 
-    useEffect(() => {
-
-        const navigateToDetail = (appointmentId: string | number) => {
-        if ( !appointmentId ) return;       
-        router.push(`/appointment/${appointmentId}`);
-        Toast.hide(); // Hide the toast after navigation
-    }
-
-        registerForPushNotificationsAsync().then(
-            (token) => setExpoPushToken(token ?? null),
-            (err) => setError(err)
-        );
-
-        notificationListener.current = 
-            Notifications.addNotificationReceivedListener((notification) => {
-                setNotification(notification); 
-                const toastTitle = notification.request.content.title || "Notification";
-                const toastBody = notification.request.content.body || "";
-                const appointmentId : any = notification.request.content.data?.appointmentId;
+    // --------------------------- Notification Handler -----------------------------
+        const showToastForNotification = React.useCallback(
+            (noti: Notifications.Notification) => {
+                const { title, body, data } = noti.request.content;
+                const appointmentId: any = (data as any)?.appointmentId;
                 Toast.show({
-                    type: 'info',
-                    text1: toastTitle,
-                    text2: toastBody,
-                    position: 'bottom',
+                    type: "info",
+                    text1: title || "Notification",
+                    text2: body || "",
+                    position: "bottom",
                     visibilityTime: 4000,
                     autoHide: true,
-                    onPress: () => { 
-                        Toast.hide(); 
-                        navigateToDetail(appointmentId); // Route to Detail View here
-                    },
-                    onShow: () => console.log('Toast shown'), // Refresh Appointment list here
-                })
-            });
-
-        responseListener.current = 
-            Notifications.addNotificationResponseReceivedListener((response) => {
-                console.log(response);
-                // Handle the response to the notification if needed
-                const appointmentId : any = response.notification.request.content.data?.appointmentId;
-                navigateToDetail(appointmentId); // Route to Detail View here
-            });
-        
-        // Handle cold start (app opened by tapping a notification)
-        // ( () => {
-        // const last = Notifications.getLastNotificationResponse();
-        // if (last) {
-        //     const data: any = last.notification.request.content.data || {};
-        //     const appointmentId = data.appointmentId ?? data.id;
-        //     // Delay a tick to ensure router is ready
-        //     setTimeout(() => navigateToDetail(appointmentId), 50);
-        // }
-        // })();
-        
-        return () => {
-            if (notificationListener.current) {
-                notificationListener.current.remove();
-            }
-
-            if (responseListener.current) {
-                responseListener.current.remove();
-            }
-
-        };
-    }, [router]);
-
-    // Helper to attempt registration with exponential backoff (up to 5 attempts in one cycle)
-    const attemptRegisterWithBackoff = React.useCallback(async (token: string): Promise<boolean> => {
-        const stored = await getItem(PUSH_TOKEN_KEY);
-        if (stored === token) return true; // already registered
-        const deviceId = await getDeviceId();
-        const maxRetries = 5;
-        let attempt = 0;
-        let delay = 1000;
-        setRegistrationState(s => ({ ...s, status: 'registering' }));
-        while (attempt < maxRetries) {
-            attempt += 1;
-            setRegistrationState(s => ({ ...s, attempts: s.attempts + 1 }));
-            try {
-                const res = await apiFetch(`${API_URL}/push/register`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ token, platform: Platform.OS, deviceId }),
+                    onPress: () => navigateToAppointmentDetail(appointmentId),
+                    onShow: () => console.log("Toast shown"), // ggf. Liste / UI aktualisieren
                 });
-                if (res.ok) {
-                    await setItem(PUSH_TOKEN_KEY, token);
-                    await deleteItem(PUSH_TOKEN_FAILED_KEY);
-                    setRegistrationState(s => ({ ...s, status: 'registered', lastSuccessAt: Date.now(), failureMessage: undefined, maxWindowExceeded: false }));
-                    return true;
-                } else {
-                    const msg = await res.text();
-                    console.warn(`Push token registration failed (attempt ${attempt}/${maxRetries}):`, msg || res.status);
-                    setRegistrationState(s => ({ ...s, status: 'registering', lastFailureAt: Date.now(), failureMessage: msg || String(res.status) }));
-                }
-            } catch (e) {
-                console.warn(`Push token registration error (attempt ${attempt}/${maxRetries}):`, (e as Error).message);
-                setRegistrationState(s => ({ ...s, status: 'registering', lastFailureAt: Date.now(), failureMessage: (e as Error).message }));
-            }
-            if (attempt < maxRetries) {
-                const jitter = Math.random() * 250;
-                await new Promise(r => setTimeout(r, delay + jitter));
-                delay *= 2;
-            }
-        }
-        // Persist failure meta for later scheduled retries
-        const failureMeta = { token, lastAttempt: Date.now() };
-        await setItem(PUSH_TOKEN_FAILED_KEY, JSON.stringify(failureMeta));
-        if (firstFailureRef.current === null) firstFailureRef.current = Date.now();
-        setRegistrationState(s => ({ ...s, status: 'failed', lastFailureAt: Date.now() }));
-        return false;
-    }, [apiFetch, API_URL]);
+            },
+            [navigateToAppointmentDetail]
+        );
 
-    // Initial registration attempt effect
-    useEffect(() => {
+    // --------------------------- Initial Setup ------------------------------------
+        useEffect(() => {
+        // Push-Berechtigungen & Token holen
+        registerForPushNotificationsAsync().then(
+            (token) => setExpoPushToken(token ?? null),
+            (error) => setError(error)
+        );
+
+        // Eingang von Notifications im Vordergrund
+        notificationSubscriptionRef.current =
+            Notifications.addNotificationReceivedListener((incoming) => {
+                setNotification(incoming);
+                showToastForNotification(incoming);
+            });
+
+        // Reaktion auf Anklicken (App im Hintergrund / geschlossen -> geöffnet)
+        responseSubscriptionRef.current =
+            Notifications.addNotificationResponseReceivedListener((response) => {
+                const appointmentId: any =
+                    response.notification.request.content.data?.appointmentId;
+                navigateToAppointmentDetail(appointmentId);
+            });
+
+        // Cleanup
+        return () => {
+            notificationSubscriptionRef.current?.remove();
+            responseSubscriptionRef.current?.remove();
+        };
+        }, [router, navigateToAppointmentDetail, showToastForNotification]);
+
+    // Versucht die Server-Registrierung mit exponentiellem Backoff (max 5 Versuche)
+    const attemptRegisterWithBackoff = React.useCallback(
+        async (token: string): Promise<boolean> => {
+            const alreadyStored = await getItem(PUSH_TOKEN_KEY);
+            if (alreadyStored === token) return true; // Bereits registriert -> fertig
+
+            const deviceId = await getDeviceId();
+            const MAX_RETRIES = 5;
+            let attempt = 0;
+            let delayMs = 1000; // Start-Delay (wird verdoppelt)
+
+            setRegistrationState((s) => ({ ...s, status: "registering" }));
+
+            while (attempt < MAX_RETRIES) {
+                attempt += 1;
+                setRegistrationState((s) => ({ ...s, attempts: s.attempts + 1 }));
+                try {
+                    const response = await apiFetch(`${API_URL}/push/register`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            token,
+                            platform: Platform.OS,
+                            deviceId,
+                        }),
+                    });
+
+                    if (response.ok) {
+                        await setItem(PUSH_TOKEN_KEY, token);
+                        await deleteItem(PUSH_TOKEN_FAILED_KEY);
+                        setRegistrationState((s) => ({
+                            ...s,
+                            status: "registered",
+                            lastSuccessAt: Date.now(),
+                            failureMessage: undefined,
+                            maxWindowExceeded: false,
+                        }));
+                        return true;
+                    }
+
+                    const bodyText = await response.text();
+                    console.warn(
+                        `Push token registration failed (attempt ${attempt}/${MAX_RETRIES}):`,
+                        bodyText || response.status
+                    );
+                    setRegistrationState((s) => ({
+                        ...s,
+                        status: "registering",
+                        lastFailureAt: Date.now(),
+                        failureMessage: bodyText || String(response.status),
+                    }));
+                } catch (e) {
+                    const msg = (e as Error).message;
+                    console.warn(
+                        `Push token registration error (attempt ${attempt}/${MAX_RETRIES}):`,
+                        msg
+                    );
+                    setRegistrationState((s) => ({
+                        ...s,
+                        status: "registering",
+                        lastFailureAt: Date.now(),
+                        failureMessage: msg,
+                    }));
+                }
+
+                if (attempt < MAX_RETRIES) {
+                    const jitter = Math.random() * 250; // leichte Zufallskomponente
+                    await new Promise((r) => setTimeout(r, delayMs + jitter));
+                    delayMs *= 2; // Exponentielles Backoff
+                }
+            }
+
+            // Dauerhaft gescheitert -> Metadaten speichern für spätere Retries
+            const failureMeta = { token, lastAttempt: Date.now() };
+            await setItem(PUSH_TOKEN_FAILED_KEY, JSON.stringify(failureMeta));
+            if (firstFailureRef.current === null) firstFailureRef.current = Date.now();
+            setRegistrationState((s) => ({
+                ...s,
+                status: "failed",
+                lastFailureAt: Date.now(),
+            }));
+            return false;
+        },
+        [apiFetch, API_URL]
+    );
+
+    // Erster Registrierungsversuch sobald Token & Session vorhanden
+        useEffect(() => {
         if (!expoPushToken || !session?.accessToken || !API_URL) return;
-        if (registeringRef.current) return;
+        if (registeringRef.current) return; // schon im Gang
+
         registeringRef.current = true;
-        (async () => {
-            await attemptRegisterWithBackoff(expoPushToken);
-        })().finally(() => {
+        attemptRegisterWithBackoff(expoPushToken).finally(() => {
             registeringRef.current = false;
         });
-    }, [expoPushToken, session?.accessToken, API_URL, attemptRegisterWithBackoff, MAX_RETRY_WINDOW_MS, RETRY_INTERVAL_MS]);
+    }, [expoPushToken, session?.accessToken, API_URL, attemptRegisterWithBackoff]);
 
-    // Background periodic retry every 15 minutes if we still haven't registered successfully.
+    // Hintergrund-Retry alle 15 Minuten solange nicht erfolgreich & Fenster aktiv
     useEffect(() => {
         if (!expoPushToken || !session?.accessToken || !API_URL) return;
         let interval: ReturnType<typeof setInterval> | null = null;
-        const start = async () => {
+
+        const startInterval = async () => {
             const stored = await getItem(PUSH_TOKEN_KEY);
-            if (stored === expoPushToken) return; // success
+            if (stored === expoPushToken) return; // bereits registriert
+
             interval = setInterval(async () => {
-                const withinWindow = firstFailureRef.current === null || (Date.now() - firstFailureRef.current) < MAX_RETRY_WINDOW_MS;
+                const withinWindow =
+                    firstFailureRef.current === null ||
+                    Date.now() - firstFailureRef.current < MAX_RETRY_WINDOW_MS;
                 if (!withinWindow) {
+                    // Zeitfenster abgelaufen -> pausieren
                     if (interval) {
                         clearInterval(interval);
                         interval = null;
                     }
-                    setRegistrationState(s => s.status === 'registered' ? s : { ...s, status: 'paused', maxWindowExceeded: true });
+                    setRegistrationState((s) =>
+                        s.status === "registered"
+                            ? s
+                            : { ...s, status: "paused", maxWindowExceeded: true }
+                    );
                     return;
                 }
-                if (registeringRef.current) return;
+
+                if (registeringRef.current) return; // gerade ein Versuch aktiv
                 registeringRef.current = true;
                 try {
                     const success = await attemptRegisterWithBackoff(expoPushToken);
@@ -221,16 +279,33 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
                 }
             }, RETRY_INTERVAL_MS);
         };
-        start();
-        return () => { if (interval) clearInterval(interval); };
-    }, [expoPushToken, session?.accessToken, API_URL, attemptRegisterWithBackoff, MAX_RETRY_WINDOW_MS, RETRY_INTERVAL_MS]);
 
-    // Manual retry exposed to UI. Resets window if previously paused.
+        startInterval();
+            return () => {
+                if (interval) {
+                    clearInterval(interval);
+                }
+            };
+    }, [
+        expoPushToken,
+        session?.accessToken,
+        API_URL,
+        attemptRegisterWithBackoff,
+        MAX_RETRY_WINDOW_MS,
+        RETRY_INTERVAL_MS,
+    ]);
+
+    // Manueller Retry (UI) – setzt Zeitfenster zurück
     const retryPushRegistration = React.useCallback(async () => {
         if (!expoPushToken || !session?.accessToken || !API_URL) return;
-        firstFailureRef.current = null; // reset window
-        setRegistrationState(s => ({ ...s, maxWindowExceeded: false, status: 'registering' }));
-        if (registeringRef.current) return;
+        firstFailureRef.current = null; // Fenster resetten
+        setRegistrationState((s) => ({
+            ...s,
+            maxWindowExceeded: false,
+            status: "registering",
+        }));
+        if (registeringRef.current) return; // laufender Versuch
+
         registeringRef.current = true;
         try {
             await attemptRegisterWithBackoff(expoPushToken);
@@ -238,8 +313,17 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
             registeringRef.current = false;
         }
     }, [expoPushToken, session?.accessToken, API_URL, attemptRegisterWithBackoff]);
+
     return (
-        <NotificationContext.Provider value={{ expoPushToken, notification, err, pushRegistration: registrationState, retryPushRegistration }}>
+        <NotificationContext.Provider
+            value={{
+                expoPushToken,
+                notification,
+                err,
+                pushRegistration: registrationState,
+                retryPushRegistration,
+            }}
+        >
             {children}
         </NotificationContext.Provider>
     );

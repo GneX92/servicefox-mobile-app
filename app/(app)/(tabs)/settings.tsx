@@ -1,4 +1,6 @@
-import { StyleSheet, View } from "react-native";
+import Constants from 'expo-constants';
+import { useState } from 'react';
+import { Pressable, StyleSheet, View } from "react-native";
 import { Button, ButtonText } from "../../../components/ui/button";
 import { Card } from "../../../components/ui/card";
 import { Text } from "../../../components/ui/text";
@@ -13,40 +15,50 @@ const statusColorMap: Record<string, string> = {
 };
 
 export default function Settings() {
+    const [showDetails, setShowDetails] = useState(false);
     const { pushRegistration, retryPushRegistration, expoPushToken } = useNotification();
     const { status, lastSuccessAt, lastFailureAt, failureMessage, maxWindowExceeded } = pushRegistration;
     const color = statusColorMap[status] || '#444';
     const dateFmt = (ts: number | null) => ts ? new Date(ts).toLocaleString() : '—';
     const showRetry = status !== 'registered';
+    // Prefer explicit env var override, else fall back to app.json version via expo-constants
+    const appVersion = (process.env.EXPO_PUBLIC_APP_VERSION || Constants.expoConfig?.version || 'unknown').trim();
 
     return (
-        <View style={styles.container}>
+        <Pressable style={styles.container} onLongPress={() => setShowDetails(v => !v)} accessibilityRole="button" accessibilityLabel="Toggle diagnostic details" accessibilityHint="Long press to show or hide push registration diagnostic information">
             <Card className="bg-background-0 mb-4 p-0" style={{ overflow: 'hidden', width: '90%' }}>
                 <View style={styles.cardTitlebar}>
                     <Text size="md" className="text-typography-700 font-semibold" style={{ color: '#45A02A' }}>Über Servicefox Mobile</Text>
                 </View>
                 <View style={styles.cardBody}>
-                    <Text className="text-typography-800 mb-2">Version 0.0.1</Text>
+                    <Text className="text-typography-800 mb-2">Version {appVersion}</Text>
                     <Text className="text-typography-800" style={{ color }}>Push Status: {status}</Text>
-                    {expoPushToken && <Text className="text-typography-600 break-all">Token: {expoPushToken}</Text>}
-                    <Text className="text-typography-600">Last Success: {dateFmt(lastSuccessAt)}</Text>
-                    <Text className="text-typography-600">Last Failure: {dateFmt(lastFailureAt)}</Text>
-                    {failureMessage && status !== 'registered' && (
-                        <Text className="text-typography-600">Reason: {failureMessage}</Text>
-                    )}
-                    {maxWindowExceeded && status === 'paused' && (
-                        <Text className="text-typography-600">Auto retries paused after 24h. Tap retry to resume.</Text>
-                    )}
-                    {showRetry && (
-                        <View style={{ marginTop: 12 }}>
-                            <Button action={status === 'failed' || status === 'paused' ? 'negative' : 'primary'} onPress={() => retryPushRegistration()} disabled={status === 'registering'}>
-                                <ButtonText>{status === 'registering' ? 'Registering…' : 'Retry Registration'}</ButtonText>
-                            </Button>
+                    {showDetails && (
+                        <View style={{ gap: 8 }}>
+                            {expoPushToken && <Text className="text-typography-600 break-all">Token: {expoPushToken}</Text>}
+                            <Text className="text-typography-600">Last Success: {dateFmt(lastSuccessAt)}</Text>
+                            <Text className="text-typography-600">Last Failure: {dateFmt(lastFailureAt)}</Text>
+                            {failureMessage && status !== 'registered' && (
+                                <Text className="text-typography-600">Grund: {failureMessage}</Text>
+                            )}
+                            {maxWindowExceeded && status === 'paused' && (
+                                <Text className="text-typography-600">Automatische Wiederholungen pausiert nach 24h. Tippe auf Wiederholen, um fortzufahren.</Text>
+                            )}
+                            {showRetry && (
+                                <View style={{ marginTop: 12 }}>
+                                    <Button action={status === 'failed' || status === 'paused' ? 'negative' : 'primary'} onPress={() => retryPushRegistration()} disabled={status === 'registering'}>
+                                        <ButtonText style={{ color: "white" }}>{status === 'registering' ? 'Registering…' : 'Retry Registration'}</ButtonText>
+                                    </Button>
+                                </View>
+                            )}
                         </View>
+                    )}
+                    {!showDetails && (
+                        <Text className="text-typography-500" style={{ fontSize: 12 }}>Long press anywhere to {showDetails ? 'hide' : 'show'} details</Text>
                     )}
                 </View>
             </Card>
-        </View>
+        </Pressable>
     );
 }
 

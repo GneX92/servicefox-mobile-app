@@ -1,3 +1,4 @@
+// Übersichtsliste der Termine (nächste 7 Tage)
 import { LegendList, LegendListRenderItemProps } from "@legendapp/list";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
@@ -9,7 +10,8 @@ import { Card } from "../../../components/ui/card";
 import { useNotification } from "../../../context/NotificationContext";
 import { useAuth } from "../../../src/auth/AuthContext";
 
-type Appointment = {
+// Grundstruktur eines Termins (Backend kann weitere Felder liefern)
+export interface Appointment {
   id: number;
   title: string;
   reference: string;
@@ -19,14 +21,36 @@ type Appointment = {
   street?: string;
   postalCode?: string;
   city?: string;
+  // Fallback für zusätzliche dynamische Felder
   [key: string]: any;
-};
+}
 
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_API_URL 
-// ?? "http://localhost:3000";
+// Basis-API (über ENV). Kein Fallback, um ungewollte Requests lokal zu vermeiden.
+const API_URL = process.env.EXPO_PUBLIC_BACKEND_API_URL;
+
+// Mögliche Container-Keys unterschiedlicher Backend-Antworten
+const COLLECTION_KEYS = [
+  'appointments',
+  'items',
+  'results',
+  'rows',
+  'data',
+  'payload'
+] as const;
+
+// Extrahiert eine Liste von Terminen aus verschieden strukturierten Antworten
+function parseAppointments(raw: any): Appointment[] {
+  if (Array.isArray(raw)) return raw as Appointment[];
+  for (const key of COLLECTION_KEYS) {
+    const value = raw?.[key];
+    if (Array.isArray(value)) return value as Appointment[];
+  }
+  return [];
+}
 
 export default function AppointmentsScreen() {
-  const { notification, expoPushToken, err } = useNotification();
+  // Aktuell keine direkten Notification-Daten benötigt – Hook bleibt für zukünftige Erweiterungen
+  useNotification();
   const { session, apiFetch } = useAuth();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -35,37 +59,30 @@ export default function AppointmentsScreen() {
 
   const accessToken = session?.accessToken;
 
+  // Hilfsfunktionen für Datumslogik
   function isToday(date: Date): boolean {
-    const today = new Date();
-    return (
-      date.getDate() === today.getDate() &&
-      date.getMonth() === today.getMonth() &&
-      date.getFullYear() === today.getFullYear()
-    );
+    const now = new Date();
+    return date.getDate() === now.getDate() && date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
   }
-
   function isTomorrow(date: Date): boolean {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    return (
-      date.getDate() === tomorrow.getDate() &&
-      date.getMonth() === tomorrow.getMonth() &&
-      date.getFullYear() === tomorrow.getFullYear()
-    );
+    return date.getDate() === tomorrow.getDate() && date.getMonth() === tomorrow.getMonth() && date.getFullYear() === tomorrow.getFullYear();
   }
 
+  // Formatiert das Datum (Heute / Morgen / lokales Datum)
   const formatDate = useCallback((value?: string) => {
     if (!value) return "";
     const d = new Date(value);
+    if (isNaN(d.getTime())) return ""; // Ungültiges Datum ignorieren
     if (isToday(d)) return "Heute";
     if (isTomorrow(d)) return "Morgen";
-    return d.toLocaleDateString("de-DE", {
-      weekday: "long",
-      day: "numeric",
-      month: "short",
-    }).replace(/\s/g, '\u00A0');
+    return d
+      .toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "short" })
+      .replace(/\s/g, '\u00A0'); // Geschützte Leerzeichen
   }, []);
 
+  // Formatiert Uhrzeit (HH:MM) – bei ungültigem Datum ursprünglichen Wert anzeigen
   const formatTime = useCallback((value?: string | number) => {
     if (!value) return "";
     const d = new Date(value);
@@ -73,24 +90,26 @@ export default function AppointmentsScreen() {
     return d.toLocaleTimeString('de-DE', { hour: "2-digit", minute: "2-digit" });
   }, []);
 
-  const isPriority = useCallback((v: Appointment["priority"]) => {
-    if (v === 1) return true;
-    return false;
-  }, []);
+  // Prio-Kennzeichnung (1 = wichtig)
+  const isPriority = useCallback((v: Appointment["priority"]) => v === 1, []);
 
+  // Stabiler Key (fällt zurück auf Referenz+Startzeit)
   const keyExtractor = useCallback((item: Appointment, index: number) => {
-    return (
-      (item.id != null ? String(item.id) : undefined) ||
-      `${item.reference ?? ""}-${item.startTime ?? index}`
-    );
+    return (item.id != null ? String(item.id) : undefined) || `${item.reference ?? ""}-${item.startTime ?? index}`;
   }, []);
 
+  // Lädt Termine beim Mount / Token-Wechsel
   useEffect(() => {
     let cancelled = false;
     async function load() {
       if (!accessToken) {
         setLoading(false);
         setError("Not authenticated");
+        return;
+      }
+      if (!API_URL) {
+        setLoading(false);
+        setError("API_URL nicht gesetzt");
         return;
       }
       setLoading(true);
@@ -102,14 +121,7 @@ export default function AppointmentsScreen() {
           throw new Error(text || `Failed to fetch (${res.status})`);
         }
         const raw = await res.json();
-        let parsed: Appointment[] = [];
-        if (Array.isArray(raw)) parsed = raw as Appointment[];
-        else if (Array.isArray(raw?.appointments)) parsed = raw.appointments;
-        else if (Array.isArray(raw?.items)) parsed = raw.items;
-        else if (Array.isArray(raw?.results)) parsed = raw.results;
-        else if (Array.isArray(raw?.rows)) parsed = raw.rows;
-        else if (Array.isArray(raw?.data)) parsed = raw.data;
-        else if (Array.isArray(raw?.payload)) parsed = raw.payload;
+        const parsed = parseAppointments(raw);
         if (!cancelled) setAppointments(parsed);
       } catch (e: any) {
         if (!cancelled) setError(e?.message ?? "Failed to load");
@@ -119,89 +131,82 @@ export default function AppointmentsScreen() {
     }
     load();
     return () => {
-      cancelled = true;
+      cancelled = true; // Abbrechen falls Komponente unmounted
     };
   }, [accessToken, apiFetch]);
 
-  const renderItem = useCallback(
-    ({ item }: LegendListRenderItemProps<Appointment>) => {
-      const startVal = item.startTime;
-      const endVal = item.endTime;
-      const priority = isPriority(item.priority);
-      const location = item.street ? item.street + ", " + item.postalCode + " " + item.city : "-";
+  // Darstellung eines einzelnen Termins
+  const renderItem = useCallback(({ item }: LegendListRenderItemProps<Appointment>) => {
+    const { startTime: startVal, endTime: endVal } = item;
+    const priority = isPriority(item.priority);
+    const location = item.street ? `${item.street}, ${item.postalCode} ${item.city}` : "-";
 
-      return (
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => {
-            if (item.id != null) {
-              router.push((`/(app)/appointment/${String(item.id)}` as any));
-            }
-          }}
-        >
-          <Card className="p-4 bg-white rounded-lg border" style={{ borderColor: '#CCCED9', borderWidth: 1 }}>
-            <View className="flex-row items-center justify-between mb-2">
-              <Text className="text-base font-semibold text-typography-800" numberOfLines={1}>
-                {item.title}
-              </Text>
-              {priority ? (
-                <Badge action="error" variant="solid" size="sm">
-                  <BadgeText size="sm" style={styles.badgeText}>Prio</BadgeText>
-                </Badge>
-              ) : null}
+    return (
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => {
+          if (item.id != null) router.push((`/(app)/appointment/${String(item.id)}` as any));
+        }}
+      >
+        <Card className="p-4 bg-white rounded-lg border" style={{ borderColor: '#CCCED9', borderWidth: 1 }}>
+          <View className="flex-row items-center justify-between mb-2">
+            <Text className="text-base font-semibold text-typography-800" numberOfLines={1}>
+              {item.title}
+            </Text>
+            {priority && (
+              <Badge action="error" variant="solid" size="sm">
+                <BadgeText size="sm" style={styles.badgeText}>Prio</BadgeText>
+              </Badge>
+            )}
+          </View>
+          <View className="flex-row items-center mb-2">
+            <View className="flex-row items-center gap-2 flex-1" style={{ minWidth: 0 }}>
+              <Text className="text-typography-800">Kommission: {item.reference}</Text>
             </View>
-            <View className="flex-row items-center mb-2">
-              <View className="flex-row items-center gap-2 flex-1" style={{ minWidth: 0 }}>
-                <Text className="text-typography-800">Kommission: {item.reference}</Text>
-              </View>           
+          </View>
+          <View className="flex-row items-center gap-1 flex-shrink-0 mb-2">
+            <MapPinHouse size={16} color="#374151" />
+            <Text className="text-typography-800">{location}</Text>
+          </View>
+          <View className="flex-row items-center justify-between">
+            <View className="flex-row items-center gap-2 flex-1" style={{ minWidth: 0 }}>
+              <CalendarDays size={16} color="#374151" />
+              <Text className="text-typography-800" numberOfLines={1} ellipsizeMode="tail">{formatDate(startVal)}</Text>
             </View>
-            <View className="flex-row items-center gap-1 flex-shrink-0 mb-2">
-                <MapPinHouse size={16} color="#374151" />
-                <Text className="text-typography-800">{location}</Text>
+            <View className="flex-row items-center gap-1 flex-shrink-0 ">
+              <Clock size={16} color="#374151" />
+              <Text className="text-typography-800">{formatTime(startVal)}</Text>
+              <Minus size={16} color="#374151" />
+              <Text className="text-typography-800">{formatTime(endVal)}</Text>
+              <Text className="text-typography-800">Uhr</Text>
             </View>
-            <View className="flex-row items-center justify-between">
-              <View className="flex-row items-center gap-2 flex-1" style={{ minWidth: 0 }}>
-                <CalendarDays size={16} color="#374151" />
-                <Text className="text-typography-800" numberOfLines={1} ellipsizeMode="tail">{formatDate(startVal)}</Text>
-              </View>
-              <View className="flex-row items-center gap-1 flex-shrink-0 ">              
-                  <Clock size={16} color="#374151" />
-                  <Text className="text-typography-800">{formatTime(startVal)}</Text>            
-                  <Minus size={16} color="#374151" />
-                  <Text className="text-typography-800">{formatTime(endVal)}</Text> 
-                  <Text className="text-typography-800">Uhr</Text>             
-              </View>
-            </View>
-          </Card>
-        </Pressable>
-      );
-    },
-    [formatDate, formatTime, isPriority, router]
-  );
+          </View>
+        </Card>
+      </Pressable>
+    );
+  }, [formatDate, formatTime, isPriority, router]);
 
+  // Entscheidet, was angezeigt wird (Ladezustand / Fehler / Liste)
   const content = useMemo(() => {
-    if (loading) {
+    if (loading)
       return (
         <View style={styles.center}>
           <Image source={require("../../../assets/images/loading.gif")} style={{ width: 300, height: 300, borderRadius: 6 }} autoplay />
           <Text style={styles.loadingText}>Loading…</Text>
         </View>
       );
-    }
-    if (error) {
+    if (error)
       return (
         <View style={styles.center}>
           <Text style={styles.errorText}>{error}</Text>
         </View>
       );
-    }
-    if (appointments.length === 0) {
+    if (appointments.length === 0)
       return (
         <View style={styles.center}>
           <Text style={styles.loadingText}>No appointments found</Text>
         </View>
       );
-    }
     return (
       <LegendList
         data={appointments}
@@ -219,9 +224,6 @@ export default function AppointmentsScreen() {
     <View style={styles.container}>
       <View style={styles.headerRow}>
         <Text style={styles.title}>Nächste 7 Tage</Text>
-        {/* <Pressable onPress={signOut} style={styles.button}>
-          <Text style={styles.buttonText}>Abmelden</Text>
-        </Pressable> */}
       </View>
       <View style={{ flex: 1 }}>{content}</View>
     </View>

@@ -36,19 +36,27 @@ type Appointment = {
   [key: string]: any;
 };
 
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_API_URL 
-// ?? "http://localhost:3000";
+// Basis-URL für Backend (Expo Env Variable)
+const API_URL = process.env.EXPO_PUBLIC_BACKEND_API_URL;
+
+// Zentrale Farbkonstanten (leichtere Anpassung)
+const PRIMARY_BRAND = "#449F29"; // Haupt-Hintergrund / Primärfarbe
+const BRAND_TEXT = "#45A02A";   // leichte Variation für Texte
+const ICON_COLOR = "#555555";    // neutrale Icon-Farbe
 
 export default function AppointmentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { session, apiFetch } = useAuth();
+
+  // States
   const [appointment, setAppointment] = useState<Appointment | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Lädt Termin-Details (mit Abbruch-Flag gegen Setzen nach Unmount)
     let cancelled = false;
-    async function load() {
+    (async function fetchAppointment() {
       if (!session?.accessToken || !id) {
         setLoading(false);
         setError(!id ? "Missing appointment id" : "Not authenticated");
@@ -57,73 +65,66 @@ export default function AppointmentDetailScreen() {
       setLoading(true);
       setError(null);
       try {
-        const res = await apiFetch(`${API_URL}/appointments/${encodeURIComponent(id)}`);
-        if (!res.ok) {
-          const text = await res.text();
-          throw new Error(text || `Failed to fetch (${res.status})`);
+        const response = await apiFetch(`${API_URL}/appointments/${encodeURIComponent(id)}`);
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || `Failed to fetch (${response.status})`);
         }
-        const data = await res.json();
+        const data = await response.json();
         if (!cancelled) setAppointment(data as Appointment);
-      } catch (e: any) {
-        if (!cancelled) setError(e?.message ?? "Failed to load appointment");
+      } catch (err: any) {
+        if (!cancelled) setError(err?.message ?? "Failed to load appointment");
       } finally {
         if (!cancelled) setLoading(false);
       }
-    }
-    load();
-    return () => {
-      cancelled = true;
-    };
+    })();
+    return () => { cancelled = true; };
   }, [id, session?.accessToken, apiFetch]);
 
-  {/* v Utility functions v */}
+  // START -- Hilfsfunktionen --------------------------------------------------
 
-  const openAddress = (address?: string) => {
-    if (!address) return;
-    openMap({ query: address });
+  const openAddress = (address?: string) => { if (address) openMap({ query: address }); };
+
+  // formatiert optionalen Wert oder liefert Fallback "-"
+  const display = (value?: string | number | null, fallback: string = "-") => {
+    if (value === null || value === undefined) return fallback;
+    const trimmed = String(value).trim();
+    return trimmed.length ? trimmed : fallback;
   };
 
-  const display = (v?: string | number | null, fallback: string = "-") => {
-    if (v === null || v === undefined) return fallback;
-    const s = String(v).trim();
-    return s.length ? s : fallback;
-  };
+  const openPhone = (phone?: string) => { if (phone) Linking.openURL(`tel:${phone}`).catch(() => {}); };
+  const openEmail = (email?: string) => { if (email) Linking.openURL(`mailto:${email}`).catch(() => {}); };
 
-  const openTel = (phone?: string) => {
-    if (!phone) return;
-    Linking.openURL(`tel:${phone}`).catch(() => {});
-  };
-  const openMail = (email?: string) => {
-    if (!email) return;
-    Linking.openURL(`mailto:${email}`).catch(() => {});
-  };
-
-  const renderPriorityBadge = (v: number | undefined) => {
-    if (v === 1) return (
-      <Badge className="bg-red-500 rounded" action="error" variant="solid" size="lg" style={styles.badgeStyle}>
-        <BadgeText className="text-typography-0" size="lg" style={styles.badgeText}>Prio</BadgeText>
-      </Badge>
-    )
-    if (v === 2) return (
-      <Badge className="bg-yellow-500 rounded" action="warning" variant="solid" size="lg" style={styles.badgeStyle}>
-        <BadgeText className="text-typography-0" size="lg" style={styles.badgeText}>Normal</BadgeText>
-      </Badge>
-    )
+  // Prioritäts-Badge (1=hoch, 2=normal, sonst keine)
+  const renderPriorityBadge = (priority?: number) => {
+    if (priority === 1) {
+      return (
+        <Badge className="bg-red-500 rounded" action="error" variant="solid" size="lg" style={styles.badgeStyle}>
+          <BadgeText className="text-typography-0" size="lg" style={styles.badgeText}>Prio</BadgeText>
+        </Badge>
+      );
+    }
+    if (priority === 2) {
+      return (
+        <Badge className="bg-yellow-500 rounded" action="warning" variant="solid" size="lg" style={styles.badgeStyle}>
+          <BadgeText className="text-typography-0" size="lg" style={styles.badgeText}>Normal</BadgeText>
+        </Badge>
+      );
+    }
     return (
       <Badge className="bg-gray-500 rounded" action="default" variant="solid" size="lg" style={styles.badgeStyle}>
         <BadgeText className="text-white" size="lg" style={styles.badgeText}>Keine</BadgeText>
       </Badge>
-    )
+    );
   };
 
-  // Convert <br> to newlines and remove other tags for use in <Text>
-    function normalizeDescription(text: string) {
-      if (typeof text !== "string") return text;
-      // match <br>, <br/>, <br />, different casing, and any extra spaces
-      return text.replace(/<\s*br\s*\/?\s*>/gi, "\n");
-    }
+  // Wandelt <br> (verschiedene Schreibweisen) in Zeilenumbrüche für Text-Komponente
+  function normalizeDescription(text: string) {
+    if (typeof text !== "string") return text;
+    return text.replace(/<\s*br\s*\/??\s*>/gi, "\n");
+  }
 
-  // Small layout component for icon + content rows
+  // Layout-Helfer: Icon links + Inhalt rechts
   const Row = ({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) => (
     <View style={styles.row}>
       <View style={styles.rowIcon}>{icon}</View>
@@ -131,21 +132,27 @@ export default function AppointmentDetailScreen() {
     </View>
   );
 
+  // Datums-/Zeitspanne kompakt darstellen (lokal DE)
   const formatRange = (start?: string, end?: string) => {
-  const sd = start ? `${new Date(start).toLocaleDateString("de-DE", { day: "numeric", month: "short" }).replace(/\s/g, "\u00A0")} ${new Date(start).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}` : "";
-  const ed = end ? `${new Date(end).toLocaleDateString("de-DE", { day: "numeric", month: "short" }).replace(/\s/g, "\u00A0")} ${new Date(end).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}` : "";
-  if (sd && ed) return `${sd} – ${ed}`;
-  if (sd) return sd;
-  if (ed) return ed;
-  return "-";
-};
+    const formatOne = (iso?: string) => {
+      if (!iso) return "";
+      const dt = new Date(iso);
+      const datePart = dt.toLocaleDateString("de-DE", { day: "numeric", month: "short" }).replace(/\s/g, "\u00A0");
+      const timePart = dt.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+      return `${datePart} ${timePart}`;
+    };
+    const startDisplay = formatOne(start);
+    const endDisplay = formatOne(end);
+    if (startDisplay && endDisplay) return `${startDisplay} – ${endDisplay}`;
+    return startDisplay || endDisplay || "-";
+  };
 
-  {/* ^ Utility functions ^ */}
+  // ENDE -- Hilfsfunktionen ---------------------------------------------------
 
-  {/* v Main content v */}
+  // -- Main content -----------------------------------------------------------
 
   const content = useMemo(() => {
-    const priority = renderPriorityBadge(appointment?.priority);
+    const priorityBadge = renderPriorityBadge(appointment?.priority);
 
     if (loading) {
       return (
@@ -156,10 +163,9 @@ export default function AppointmentDetailScreen() {
       );
     }
     if (error) {
+      // Versuche JSON Fehlerdetails zu parsen
       let parsed: any = null;
-      if (error.startsWith('{')) {
-        try { parsed = JSON.parse(error); } catch { /* ignore */ }
-      }
+      if (error.startsWith('{')) { try { parsed = JSON.parse(error); } catch { /* ignorieren */ } }
       return (
         <View style={[styles.center, { paddingHorizontal: 16 }] }>
           <Alert action="error" variant="solid" style={{ backgroundColor: "#ffcccc" }}>
@@ -176,29 +182,28 @@ export default function AppointmentDetailScreen() {
     }
     if (!appointment) return null;
 
-    // Full address for map link
+    // Vollständige Adresse für Karten-App
     const location = appointment.street
       ? `${display(appointment.street)}, ${display(appointment.postalCode)} ${display(appointment.city)}`
       : "-";
 
-    const html = appointment.description ? appointment.description : "<p>Keine zusätzlichen Informationen.</p>";
-
-    const restoredHtml = normalizeDescription(html);
+    const descriptionHtml = appointment.description ? appointment.description : "<p>Keine zusätzlichen Informationen.</p>";
+    const plainDescription = normalizeDescription(descriptionHtml);
 
     return (
-<ScrollView style={{ flex: 1, backgroundColor: "#449F29" }} contentContainerStyle={{ padding: 10, gap: 16 }}>
+<ScrollView style={{ flex: 1, backgroundColor: PRIMARY_BRAND }} contentContainerStyle={{ padding: 10, gap: 16 }}>
   <Card className="bg-background-0 mb-4 p-0" style={{ overflow: "hidden" }}> 
 
     {/* Titlebar */}
     <View style={styles.cardTitlebar}>
-      <Text size="md" className="text-typography-700 font-semibold" style={{ color: '#45A02A' }}>Serviceeinsatz#{appointment?.id} - {appointment?.reference}</Text>
+      <Text size="md" className="text-typography-700 font-semibold" style={{ color: BRAND_TEXT }}>Serviceeinsatz#{appointment?.id} - {appointment?.reference}</Text>
     </View>
 
     {/* Body */}
     <View style={styles.cardBody}>
 
       {/* Einsatzart & Kommission */}
-      <Row icon={<Wrench size={32} color="#555555" />}>
+      <Row icon={<Wrench size={32} color={ICON_COLOR} />}>
         <View style={{ flexDirection: "column", gap: 4 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <Text size="md" className="text-typography-800">Einsatzart:</Text>
@@ -212,15 +217,15 @@ export default function AppointmentDetailScreen() {
       </Row>
 
       {/* Priorität */}       
-      <Row icon={<Flag size={32} color="#555555" />}>
+      <Row icon={<Flag size={32} color={ICON_COLOR} />}>
         <View style={{ flexDirection: "row", gap: 16, alignItems: "center" }}>
           <Text size="md" className="text-typography-800 font-semibold">Priorität:</Text>
-          {priority}
+          {priorityBadge}
         </View>
       </Row>
 
       {/* Einsatzdauer */}                
-      <Row icon={<CalendarDays size={32} color="#555555" />}>
+      <Row icon={<CalendarDays size={32} color={ICON_COLOR} />}>
         <Text size="md" className="text-typography-800 font-semibold">
           {formatRange(appointment?.startTime, appointment?.endTime)}
         </Text>
@@ -234,23 +239,23 @@ export default function AppointmentDetailScreen() {
         accessibilityHint="Adresse in Karten öffnen"
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       >
-        <Row icon={<MapPinHouse size={32} color="#555555" />}>
+        <Row icon={<MapPinHouse size={32} color={ICON_COLOR} />}>
           <Text style={styles.linkText}>{display(location)}</Text>
         </Row>
       </Pressable>
 
       {/* Kontakt */}        
-      <Row icon={<User size={32} color="#555555" />}>
+      <Row icon={<User size={32} color={ICON_COLOR} />}>
         <View style={{ gap: 8 }}>
           <Text size="md" className="text-typography-800">{display(appointment?.contactName)}</Text>
           <View style={{ flexDirection: "column", gap: 8 }}>
-            <Pressable onPress={() => openTel(appointment?.contactPhone)} disabled={!appointment?.contactPhone} accessibilityRole="button" accessibilityHint="Anrufen">
+            <Pressable onPress={() => openPhone(appointment?.contactPhone)} disabled={!appointment?.contactPhone} accessibilityRole="button" accessibilityHint="Anrufen">
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6, opacity: appointment?.contactPhone ? 1 : 0.5 }}>
                 <Icon as={PhoneIcon} className="text-typography-700" />
                 <Text size="sm" style={styles.linkText}>{display(appointment?.contactPhone)}</Text>
               </View>
             </Pressable>
-            <Pressable onPress={() => openMail(appointment?.contactEmail)} disabled={!appointment?.contactEmail} accessibilityRole="button" accessibilityHint="E-Mail schreiben">
+            <Pressable onPress={() => openEmail(appointment?.contactEmail)} disabled={!appointment?.contactEmail} accessibilityRole="button" accessibilityHint="E-Mail schreiben">
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6, opacity: appointment?.contactEmail ? 1 : 0.5 }}>
                 <Icon as={MailIcon} className="text-typography-700" />
                 <Text size="sm" style={styles.linkText}>{display(appointment?.contactEmail)}</Text>
@@ -329,7 +334,7 @@ export default function AppointmentDetailScreen() {
         <View style={{ justifyContent: "center", alignItems: "center" }}>     
           <Text className="text-typography-800 font-bold">Weitere Informationen</Text>
         </View>
-        <Text className="text-typography-800">{restoredHtml}</Text>
+        <Text className="text-typography-800">{plainDescription}</Text>
       </View>
     </View>
   </Card>
@@ -341,7 +346,7 @@ export default function AppointmentDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: "#449F29" },
+  container: { flex: 1, padding: 16, backgroundColor: PRIMARY_BRAND },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8 },
   badgeText: { fontWeight: "bold", textAlign: "center", color: "white" },
   badgeStyle: { alignSelf: "flex-start", flexShrink: 1 },
@@ -373,6 +378,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   linkText: {
-    color: "#449F29",
+    color: PRIMARY_BRAND,
   }
 });

@@ -5,8 +5,7 @@ import { useAuth } from "../src/auth/AuthContext";
 export default function Index() {
   const { isBootstrapping, session } = useAuth();
 
-  if (isBootstrapping) {
-    // Splash is visible; render nothing
+  if (isBootstrapping) {  
     return null;
   }
 

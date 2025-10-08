@@ -7,8 +7,7 @@ const secureOptions = {
 const hasWindow = typeof window !== "undefined";
 
 async function trySecure<T>(fn: () => Promise<T>): Promise<T | undefined> {
-  try {
-    // Some mismatches throw here; catch and fall back.
+  try {   
     return await fn();
   } catch {
     return undefined;

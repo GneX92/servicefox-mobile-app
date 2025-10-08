@@ -1,17 +1,17 @@
-// Utilities for persisting and managing push notification related data.
-// NOTE: True device MAC addresses are not available in Expo (and are restricted on iOS/Android for privacy).
-// We instead generate a stable (persisted) pseudo device identifier on first use that combines
-// a few non-unique build/model hints plus random entropy. This stays stable for the app install
-// because we store it in SecureStore.
+// Hilfsfunktionen für Push-Benachrichtigungen
+// NOTE: Echte MAC-Adressen sind in Expo nicht verfügbar (und sind auf iOS/Android aus Datenschutzgründen eingeschränkt).
+// Stattdessen wird eine stabile (persistente) pseudo Geräte-ID bei der ersten Verwendung generiert, diese kombiniert
+// einige nicht eindeutige Build-/Modellhinweise mit zufälliger Entropie. Diese bleibt stabil für die App-Installation
+// weil sie im SecureStore gespeichert wird.
 
 import * as Device from 'expo-device';
 import { getItem, setItem } from './storage';
 
-export const PUSH_TOKEN_KEY = 'pushToken'; // indicates successful registration
-export const PUSH_TOKEN_FAILED_KEY = 'pushTokenFailed'; // holds JSON metadata about last failed registration attempt
+export const PUSH_TOKEN_KEY = 'pushToken';
+export const PUSH_TOKEN_FAILED_KEY = 'pushTokenFailed'; // JSON-Metadaten zum letzten fehlgeschlagenen Registrierungsversuch
 export const DEVICE_ID_KEY = 'deviceId';
 
-/** Returns a stable pseudo device id (NOT a MAC address). */
+/** Gibt Pseudo-Geräte-ID zurück (Keine MAC-Adresse weil man die nicht einfach abrufen kann). */
 export async function getDeviceId(): Promise<string> {
   const existing = await getItem(DEVICE_ID_KEY);
   if (existing) return existing;
