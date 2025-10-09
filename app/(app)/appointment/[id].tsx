@@ -197,7 +197,7 @@ export default function AppointmentDetailScreen() {
 <View style={{ flex: 1 }}>
 <ScrollView
   style={{ flex: 1, backgroundColor: PRIMARY_BRAND }}
-  contentContainerStyle={{ paddingHorizontal: 0, paddingTop: 20, gap: 16 }}
+  contentContainerStyle={{ paddingHorizontal: 0, paddingTop: 20, paddingBottom: 10, gap: 16 }}
   showsVerticalScrollIndicator={false}
   scrollEventThrottle={16}
   onScroll={(e) => {

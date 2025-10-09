@@ -246,7 +246,6 @@ const styles = StyleSheet.create({
     fontSize: 22, 
     fontWeight: "600", 
     color: "#449F29",
-
     textAlign: 'center',
     width: '100%',
   },

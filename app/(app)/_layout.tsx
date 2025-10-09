@@ -38,6 +38,10 @@ export default function AppLayout() {
       <Stack
         screenOptions={{
           headerTitleAlign: "center",
+          // Provide a default header style/tint (affects back button) for all inner screens
+          // headerTintColor: '#555555', // dark gray for icons/text
+          // headerStyle: { backgroundColor: '#F7F8FB' },
+          // headerTitleStyle: { color: '#555555' },
         }}
       >
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -48,6 +52,10 @@ export default function AppLayout() {
             headerBackTitle: "Zurück",
             headerBackVisible: true,
             headerTitleAlign: "center",
+            // Explicitly ensure back arrow contrast if background is light
+            // headerTintColor: '#555555',
+            // headerStyle: { backgroundColor: '#F7F8FB' },
+            // headerTitleStyle: { color: '#555555', fontWeight: '600' },
           }}
         />
       </Stack>
