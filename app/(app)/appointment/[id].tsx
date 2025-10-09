@@ -1,5 +1,5 @@
 import { useLocalSearchParams } from "expo-router";
-import { CalendarDays, CloudAlert, Flag, MapPinHouse, User, Wrench } from 'lucide-react-native';
+import { CalendarDays, ChevronDown, CloudAlert, Flag, MapPinHouse, User, Wrench } from 'lucide-react-native';
 import React, { useEffect, useMemo, useState } from "react";
 import { Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import openMap from 'react-native-open-maps';
@@ -52,6 +52,9 @@ export default function AppointmentDetailScreen() {
   const [appointment, setAppointment] = useState<Appointment | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Scroll indicator state
+  const [atBottom, setAtBottom] = useState(false);
+  const [isScrollable, setIsScrollable] = useState(false);
 
   useEffect(() => {
     // Lädt Termin-Details (mit Abbruch-Flag gegen Setzen nach Unmount)
@@ -100,14 +103,14 @@ export default function AppointmentDetailScreen() {
     if (priority === 1) {
       return (
         <Badge className="bg-red-500 rounded" action="error" variant="solid" size="lg" style={styles.badgeStyle}>
-          <BadgeText className="text-typography-0" size="lg" style={styles.badgeText}>Prio</BadgeText>
+          <BadgeText className="text-white" size="lg" style={styles.badgeText}>Prio</BadgeText>
         </Badge>
       );
     }
     if (priority === 2) {
       return (
         <Badge className="bg-yellow-500 rounded" action="warning" variant="solid" size="lg" style={styles.badgeStyle}>
-          <BadgeText className="text-typography-0" size="lg" style={styles.badgeText}>Normal</BadgeText>
+          <BadgeText className="text-white" size="lg" style={styles.badgeText}>Normal</BadgeText>
         </Badge>
       );
     }
@@ -152,7 +155,7 @@ export default function AppointmentDetailScreen() {
   // -- Main content -----------------------------------------------------------
 
   const content = useMemo(() => {
-    const priorityBadge = renderPriorityBadge(appointment?.priority);
+  const priorityBadge = renderPriorityBadge(appointment?.priority);
 
     if (loading) {
       return (
@@ -187,12 +190,24 @@ export default function AppointmentDetailScreen() {
       ? `${display(appointment.street)}, ${display(appointment.postalCode)} ${display(appointment.city)}`
       : "-";
 
-    const descriptionHtml = appointment.description ? appointment.description : "<p>Keine zusätzlichen Informationen.</p>";
+    const descriptionHtml = appointment.description ? appointment.description : "Keine zusätzlichen Informationen.";
     const plainDescription = normalizeDescription(descriptionHtml);
 
     return (
-<ScrollView style={{ flex: 1, backgroundColor: PRIMARY_BRAND }} contentContainerStyle={{ padding: 10, gap: 16 }}>
-  <Card className="bg-background-0 mb-4 p-0" style={{ overflow: "hidden" }}> 
+<View style={{ flex: 1 }}>
+<ScrollView
+  style={{ flex: 1, backgroundColor: PRIMARY_BRAND }}
+  contentContainerStyle={{ paddingHorizontal: 0, paddingTop: 20, gap: 16 }}
+  showsVerticalScrollIndicator={false}
+  scrollEventThrottle={16}
+  onScroll={(e) => {
+    const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+    const bottomReached = contentOffset.y + layoutMeasurement.height >= contentSize.height - 16; // threshold
+    setAtBottom(bottomReached);
+    setIsScrollable(contentSize.height > layoutMeasurement.height + 1);
+  }}
+>
+  <Card className="bg-background-0 mb-4 p-0" style={styles.card}> 
 
     {/* Titlebar */}
     <View style={styles.cardTitlebar}>
@@ -339,14 +354,27 @@ export default function AppointmentDetailScreen() {
     </View>
   </Card>
 </ScrollView>
+{isScrollable && !atBottom && !loading && !error && (
+  <View pointerEvents="none" style={styles.scrollHint} accessibilityHint="Mehr Inhalte unterhalb verfügbar">
+    <View style={styles.scrollHintInner}>
+      <ChevronDown size={18} color="#ffffff" />
+      <Text size="xs" style={styles.scrollHintText}>Mehr</Text>
+    </View>
+  </View>
+)}
+</View>
     );
-  }, [appointment, error, loading]);
+  }, [appointment, error, loading, atBottom, isScrollable]);
 
   return <View style={styles.container}>{content}</View>;
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: PRIMARY_BRAND },
+  container: { 
+    flex: 1,  
+    backgroundColor: PRIMARY_BRAND,
+    // Removed paddingTop so the ScrollView can scroll flush with top bar
+  },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8 },
   badgeText: { fontWeight: "bold", textAlign: "center", color: "white" },
   badgeStyle: { alignSelf: "flex-start", flexShrink: 1 },
@@ -379,5 +407,34 @@ const styles = StyleSheet.create({
   },
   linkText: {
     color: PRIMARY_BRAND,
-  }
+  },
+  card: { 
+    // borderColor: '#CCCED9', 
+    // borderWidth: 1,
+    boxShadow: 'inset 0px 1px 2px #ffffff70 , 0px 4px 6px #00000030, 0px 6px 10px #00000015',
+    overflow: 'hidden', 
+    width: '90%', 
+    alignSelf: 'center',
+  },
+  scrollHint: {
+    position: 'absolute',
+    bottom: 4,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scrollHintInner: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    alignItems: 'center',
+    gap: 4,
+  },
+  scrollHintText: {
+    color: '#ffffff',
+    fontWeight: '500',
+  },
 });

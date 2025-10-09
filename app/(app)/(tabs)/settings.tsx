@@ -25,8 +25,8 @@ export default function Settings() {
     const appVersion = (process.env.EXPO_PUBLIC_APP_VERSION || Constants.expoConfig?.version || 'unknown').trim();
 
     return (
-        <Pressable style={styles.container} onLongPress={() => setShowDetails(v => !v)} accessibilityRole="button" accessibilityLabel="Toggle diagnostic details" accessibilityHint="Long press to show or hide push registration diagnostic information">
-            <Card className="bg-background-0 mb-4 p-0" style={{ overflow: 'hidden', width: '90%' }}>
+        <Pressable style={styles.container} onLongPress={() => setShowDetails(v => !v)} delayLongPress={2000} accessibilityRole="button" accessibilityLabel="Toggle diagnostic details" accessibilityHint="Long press to show or hide push registration diagnostic information">
+            <Card className="bg-background-0 mb-4 p-0" style={styles.card}>
                 <View style={styles.cardTitlebar}>
                     <Text size="md" className="text-typography-700 font-semibold" style={{ color: '#45A02A' }}>Über Servicefox Mobile</Text>
                 </View>
@@ -79,16 +79,25 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     alignItems: 'center',
     justifyContent: 'center',
-    borderColor: '#CCCED9',
-    borderWidth: 1,
+    borderBottomWidth: 1,
+    borderBottomColor: '#CCCED9',
+    // borderColor: '#CCCED9',
+    // borderWidth: 1,
   },
   cardBody: {
     padding: 16,
     gap: 32,
-    borderColor: '#CCCED9',
-    borderWidth: 1,
+    // borderColor: '#CCCED9',
+    // borderWidth: 1,
     borderBottomLeftRadius: 8,
     borderBottomRightRadius: 8,
     borderTopWidth: 0,
   },
+  card: { 
+    // borderColor: '#CCCED9', 
+    // borderWidth: 1,
+    boxShadow: 'inset 0px 1px 2px #ffffff70 , 0px 4px 6px #00000030, 0px 6px 10px #00000015',
+    overflow: 'hidden', 
+    width: '90%'
+  }, 
 });

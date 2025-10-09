@@ -143,9 +143,9 @@ export default function AppointmentsScreen() {
           if (item.id != null) router.push((`/(app)/appointment/${String(item.id)}` as any));
         }}
       >
-        <Card className="p-4 bg-white rounded-lg border" style={{ borderColor: '#CCCED9', borderWidth: 1 }}>
+        <Card className="p-4 bg-white rounded-lg" style={styles.card}>
           <View className="flex-row items-center justify-between mb-2">
-            <Text className="text-base font-semibold text-typography-800" numberOfLines={1}>
+            <Text className="text-base font-semibold text-typography-900" numberOfLines={1}>
               {item.title}
             </Text>
             {priority && (
@@ -229,7 +229,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     gap: 12,
-    padding: 16,
+    justifyContent: 'flex-start',
+    marginTop: 20,
     backgroundColor: "#F1F2F5",
   },
   headerRow: {
@@ -241,7 +242,14 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     gap: 12,
   },
-  title: { fontSize: 22, fontWeight: "600", color: "#449F29" },
+  title: { 
+    fontSize: 22, 
+    fontWeight: "600", 
+    color: "#449F29",
+
+    textAlign: 'center',
+    width: '100%',
+  },
   button: {
     backgroundColor: "#dc2626",
     paddingVertical: 8,
@@ -259,4 +267,12 @@ const styles = StyleSheet.create({
   loadingText: { color: "#374151" },
   errorText: { color: "#b91c1c" },
   badgeText: { fontWeight: 'bold' },
+  card: { 
+    // borderColor: '#CCCED9', 
+    // borderWidth: 1,
+    boxShadow: 'inset 0px 1px 2px #ffffff70 , 0px 4px 6px #00000030, 0px 6px 10px #00000015',
+    overflow: 'hidden', 
+    width: '90%',
+    alignSelf: 'center',
+  },  
 });
