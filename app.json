@@ -10,7 +10,10 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "dev.expo.servicefoxmobile"
+      "bundleIdentifier": "dev.expo.servicefoxmobile",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -51,8 +54,6 @@
       "reactCompiler": true
     },
     "extra": {
-      // NOTE: Removed hard-coded insecure backendUrl (see CODE_REVIEW line 68 fix).
-      // Use EXPO_PUBLIC_BACKEND_API_URL from .env instead. Example provided in .env.example.
       "router": {},
       "eas": {
         "projectId": "9358c075-b21b-4b37-b550-2f5e8800d273"
