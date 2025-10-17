@@ -68,7 +68,7 @@ const styles = StyleSheet.create({
         justifyContent: 'flex-start',
         alignItems: 'center',
         marginTop: 20,
-        backgroundColor: "#F1F2F5",
+        backgroundColor: "#449F29",
     },
     cardTitlebar: {
     backgroundColor: '#f8f9fc',

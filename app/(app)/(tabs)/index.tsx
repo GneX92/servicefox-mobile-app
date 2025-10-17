@@ -231,7 +231,7 @@ const styles = StyleSheet.create({
     gap: 12,
     justifyContent: 'flex-start',
     marginTop: 20,
-    backgroundColor: "#F1F2F5",
+    backgroundColor: "#449F29",
   },
   headerRow: {
     flexDirection: "row",
