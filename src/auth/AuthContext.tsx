@@ -1,3 +1,4 @@
+import { fetch, type FetchRequestInit } from "expo/fetch";
 import React, {
   createContext,
   useCallback,
@@ -8,7 +9,6 @@ import React, {
   useState,
 } from "react";
 import { Platform } from 'react-native';
-
 import { buildApiUrl } from "../config/api";
 import { DEVICE_ID_KEY, PUSH_TOKEN_KEY } from "../utils/pushNotifications";
 import { deleteItem, getItem, setItem } from "../utils/storage";
@@ -57,7 +57,7 @@ type AuthContextType = {
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
   apiFetch: (
-    input: RequestInfo | URL,
+    input: string | URL,
     init?: RequestInit & { skipAuth?: boolean }
   ) => Promise<Response>;
 };
@@ -252,24 +252,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Fetch Wrapper mit automatischer Auth & einmaligem Refresh-Versuch bei 401.
   const apiFetch = useCallback<AuthContextType["apiFetch"]>(async (input, init) => {
-    const skipAuth = init?.skipAuth;
+    const { skipAuth, ...restInit } = init ?? {};
     const currentAccess = session?.accessToken;
+    const requestUrl = typeof input === "string" ? input : input.toString();
+
+    const createInit = (): FetchRequestInit => {
+      const clone: FetchRequestInit = { ...(restInit as FetchRequestInit) };
+      if (clone.body == null) delete clone.body;
+      return clone;
+    };
 
     const performFetch = async (allowRefresh: boolean): Promise<Response> => {
-      const headers = new Headers(init?.headers || {});
+      const baseInit = createInit();
+      const headers = new Headers(baseInit.headers || {});
       if (!skipAuth && currentAccess) headers.set("Authorization", `Bearer ${currentAccess}`);
       if (!skipAuth && session?.sessionId) headers.set("x-session-id", session.sessionId);
-      const response = await fetch(input, { ...init, headers });
+
+      const response = await fetch(requestUrl, { ...baseInit, headers });
 
       if (response.status === 401 && !skipAuth && allowRefresh) {
         try {
           await refresh();
           const latestAccess = (await getItem(ACCESS_TOKEN_STORAGE_KEY)) || session?.accessToken;
           if (latestAccess) {
-            const retryHeaders = new Headers(init?.headers || {});
+            const retryInit = createInit();
+            const retryHeaders = new Headers(retryInit.headers || {});
             retryHeaders.set("Authorization", `Bearer ${latestAccess}`);
             if (session?.sessionId) retryHeaders.set("x-session-id", session.sessionId);
-            return fetch(input, { ...init, headers: retryHeaders });
+            return fetch(requestUrl, { ...retryInit, headers: retryHeaders });
           }
         } catch {
           // Silent: fehlgeschlagener Refresh -> ursprüngliche 401 weiterreichen.
