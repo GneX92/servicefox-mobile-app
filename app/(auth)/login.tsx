@@ -1,11 +1,12 @@
+import { AtSign, Eye, EyeOff, Lock } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { Image, View } from 'react-native';
 import WtkLogo from '../../assets/images/wtk.svg';
 import { Alert, AlertIcon, AlertText } from '../../components/ui/alert';
 import { Button, ButtonSpinner, ButtonText } from '../../components/ui/button';
 import { FormControl, FormControlLabel, FormControlLabelText } from '../../components/ui/form-control';
-import { AtSignIcon, EyeIcon, EyeOffIcon, LockIcon } from '../../components/ui/icon';
-import { Input, InputField, InputIcon, InputSlot } from '../../components/ui/input';
+import { EyeOffIcon } from '../../components/ui/icon';
+import { Input, InputField, InputSlot } from '../../components/ui/input';
 import { useAuth } from '../../src/auth/AuthContext';
 
 export default function LoginScreen() {
@@ -47,7 +48,8 @@ export default function LoginScreen() {
           </FormControlLabel>
           <Input size="lg">
             <InputSlot className="pl-3">
-              <InputIcon as={AtSignIcon} />
+              <AtSign size={20} color="#9AAAAA" />
+              {/* <InputIcon as={AtSignIcon} /> */}
             </InputSlot>
             <InputField
               value={email}
@@ -67,7 +69,8 @@ export default function LoginScreen() {
           </FormControlLabel>
           <Input size="lg">
             <InputSlot className="pl-3">
-              <InputIcon as={LockIcon} />
+              <Lock size={20} color="#9AAAAA" />
+              {/* <InputIcon as={Lock} /> */}
             </InputSlot>
             <InputField
               value={password}
@@ -83,7 +86,8 @@ export default function LoginScreen() {
               accessibilityRole="button"
               accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
             >
-              <InputIcon as={showPassword ? EyeOffIcon : EyeIcon} />
+              {showPassword ? <EyeOff size={20} color="#9AAAAA" /> : <Eye size={20} color="#9AAAAA" />}
+              {/* <InputIcon as={showPassword ? EyeOffIcon : EyeIcon} /> */}
             </InputSlot>
           </Input>
         </FormControl>

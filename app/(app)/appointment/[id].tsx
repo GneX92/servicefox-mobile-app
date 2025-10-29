@@ -266,13 +266,13 @@ export default function AppointmentDetailScreen() {
           <View style={{ flexDirection: "column", gap: 8 }}>
             <Pressable onPress={() => openPhone(appointment?.contactPhone)} disabled={!appointment?.contactPhone} accessibilityRole="button" accessibilityHint="Anrufen">
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6, opacity: appointment?.contactPhone ? 1 : 0.5 }}>
-                <Icon as={PhoneIcon} className="text-typography-700" />
+                <Icon as={PhoneIcon} className="text-typography-700" color="#9AAAAA" />
                 <Text size="sm" style={styles.linkText}>{display(appointment?.contactPhone)}</Text>
               </View>
             </Pressable>
             <Pressable onPress={() => openEmail(appointment?.contactEmail)} disabled={!appointment?.contactEmail} accessibilityRole="button" accessibilityHint="E-Mail schreiben">
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6, opacity: appointment?.contactEmail ? 1 : 0.5 }}>
-                <Icon as={MailIcon} className="text-typography-700" />
+                <Icon as={MailIcon} className="text-typography-700" color="#9AAAAA" />
                 <Text size="sm" style={styles.linkText}>{display(appointment?.contactEmail)}</Text>
               </View>
             </Pressable>

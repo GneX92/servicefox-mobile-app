@@ -230,7 +230,6 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 12,
     justifyContent: 'flex-start',
-    marginTop: 20,
     backgroundColor: "#449F29",
   },
   headerRow: {
