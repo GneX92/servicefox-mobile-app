@@ -84,7 +84,7 @@ export default function TabLayout() {
                             onPress={confirmLogout}
                             className="flex-1"
                         >
-                            <ButtonText>Abmelden</ButtonText>
+                            <ButtonText style={{ color: "white" }}>Abmelden</ButtonText>
                         </Button>
                     </ModalFooter>
                 </ModalContent>

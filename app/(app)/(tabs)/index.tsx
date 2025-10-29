@@ -2,10 +2,10 @@
 import { LegendList, LegendListRenderItemProps } from "@legendapp/list";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import { CalendarDays, Clock, MapPinHouse, Minus } from 'lucide-react-native';
+import { Ban, CalendarDays, Clock, MapPinHouse, Minus } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Badge, BadgeText } from "../../../components/ui/badge";
+import { Badge, BadgeIcon, BadgeText } from "../../../components/ui/badge";
 import { Card } from "../../../components/ui/card";
 import { useNotification } from "../../../context/NotificationContext";
 import { useAuth } from "../../../src/auth/AuthContext";
@@ -199,7 +199,10 @@ export default function AppointmentsScreen() {
     if (appointments.length === 0)
       return (
         <View style={styles.center}>
-          <Text style={styles.loadingText}>No appointments found</Text>
+          <Badge size="lg" variant="solid" action="muted">
+            <BadgeText>Keine Einsätze gefunden</BadgeText>
+            <BadgeIcon as={Ban} className="ml-2" color="#999999" size={20} />
+          </Badge>
         </View>
       );
     return (

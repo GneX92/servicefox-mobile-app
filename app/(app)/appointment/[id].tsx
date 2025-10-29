@@ -1,12 +1,11 @@
 import { useLocalSearchParams } from "expo-router";
-import { CalendarDays, ChevronDown, CloudAlert, Flag, MapPinHouse, User, Wrench } from 'lucide-react-native';
+import { CalendarDays, ChevronDown, CloudAlert, Flag, Mail, MapPinHouse, Phone, User, Wrench } from 'lucide-react-native';
 import React, { useEffect, useMemo, useState } from "react";
 import { Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import openMap from 'react-native-open-maps';
 import { Alert, AlertText } from "../../../components/ui/alert";
 import { Badge, BadgeText } from "../../../components/ui/badge";
 import { Card } from "../../../components/ui/card";
-import { Icon, MailIcon, PhoneIcon } from "../../../components/ui/icon";
 import { Spinner } from "../../../components/ui/spinner";
 import { Table, TableBody, TableData, TableHead, TableRow } from "../../../components/ui/table";
 import { Text } from "../../../components/ui/text";
@@ -121,10 +120,85 @@ export default function AppointmentDetailScreen() {
     );
   };
 
-  // Wandelt <br> (verschiedene Schreibweisen) in Zeilenumbrüche für Text-Komponente
-  function normalizeDescription(text: string) {
-    if (typeof text !== "string") return text;
-    return text.replace(/<\s*br\s*\/??\s*>/gi, "\n");
+  // Parses HTML text and returns React Native components with proper formatting
+  function parseHtmlDescription(html: string): React.ReactNode[] {
+    if (typeof html !== "string") return [html];
+    
+    // Simple HTML parser for common tags
+    const elements: React.ReactNode[] = [];
+    let key = 0;
+    
+    // Replace self-closing br tags and normalize whitespace
+    const normalized = html
+      .replace(/<\s*br\s*\/??\s*>/gi, "\n")
+      .trim();
+    
+    // Split by tags while preserving them
+    const regex = /<(\/?)(b|u|i|strong|em|span)([^>]*)>/gi;
+    const parts = normalized.split(regex);
+    
+    let i = 0;
+    const stack: { tag: string; attrs: string }[] = [];
+    
+    while (i < parts.length) {
+      const part = parts[i];
+      
+      // Check if this is a tag marker
+      if (i % 4 === 1) {
+        // parts[i] = closing slash or empty
+        // parts[i+1] = tag name
+        // parts[i+2] = attributes
+        const isClosing = part === '/';
+        const tagName = parts[i + 1]?.toLowerCase();
+        const attrs = parts[i + 2] || '';
+        
+        if (!isClosing && tagName) {
+          stack.push({ tag: tagName, attrs });
+        } else if (isClosing && stack.length > 0) {
+          stack.pop();
+        }
+        i += 3;
+      } else if (part) {
+        // This is text content
+        const lines = part.split('\n');
+        lines.forEach((line, lineIdx) => {
+          if (line.trim()) {
+            let textStyle: any = { color: '#1f2937' };
+            let textElement = line;
+            
+            // Apply styles based on current stack
+            stack.forEach(({ tag, attrs }) => {
+              if (tag === 'b' || tag === 'strong') {
+                textStyle.fontWeight = 'bold';
+              }
+              if (tag === 'u') {
+                textStyle.textDecorationLine = 'underline';
+              }
+              if (tag === 'i' || tag === 'em') {
+                textStyle.fontStyle = 'italic';
+              }
+              if (attrs.includes('text-danger')) {
+                textStyle.color = '#dc2626'; // red-600
+              }
+            });
+            
+            elements.push(
+              <Text key={`text-${key++}`} style={textStyle}>
+                {textElement}
+              </Text>
+            );
+          }
+          
+          // Add line break between lines (except for last line)
+          if (lineIdx < lines.length - 1) {
+            elements.push(<Text key={`br-${key++}`}>{'\n'}</Text>);
+          }
+        });
+      }
+      i++;
+    }
+    
+    return elements.length > 0 ? elements : [<Text key="empty">Keine zusätzlichen Informationen.</Text>];
   }
 
   // Layout-Helfer: Icon links + Inhalt rechts
@@ -191,7 +265,7 @@ export default function AppointmentDetailScreen() {
       : "-";
 
     const descriptionHtml = appointment.description ? appointment.description : "Keine zusätzlichen Informationen.";
-    const plainDescription = normalizeDescription(descriptionHtml);
+    const parsedDescription = parseHtmlDescription(descriptionHtml);
 
     return (
 <View style={{ flex: 1 }}>
@@ -266,13 +340,13 @@ export default function AppointmentDetailScreen() {
           <View style={{ flexDirection: "column", gap: 8 }}>
             <Pressable onPress={() => openPhone(appointment?.contactPhone)} disabled={!appointment?.contactPhone} accessibilityRole="button" accessibilityHint="Anrufen">
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6, opacity: appointment?.contactPhone ? 1 : 0.5 }}>
-                <Icon as={PhoneIcon} className="text-typography-700" color="#9AAAAA" />
+                <Phone size={20} color={"#9AAAAA"} />
                 <Text size="sm" style={styles.linkText}>{display(appointment?.contactPhone)}</Text>
               </View>
             </Pressable>
             <Pressable onPress={() => openEmail(appointment?.contactEmail)} disabled={!appointment?.contactEmail} accessibilityRole="button" accessibilityHint="E-Mail schreiben">
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6, opacity: appointment?.contactEmail ? 1 : 0.5 }}>
-                <Icon as={MailIcon} className="text-typography-700" color="#9AAAAA" />
+                <Mail size={20} color={"#9AAAAA"} />
                 <Text size="sm" style={styles.linkText}>{display(appointment?.contactEmail)}</Text>
               </View>
             </Pressable>
@@ -349,7 +423,9 @@ export default function AppointmentDetailScreen() {
         <View style={{ justifyContent: "center", alignItems: "center" }}>     
           <Text className="text-typography-800 font-bold">Weitere Informationen</Text>
         </View>
-        <Text className="text-typography-800">{plainDescription}</Text>
+        <View style={{ flexDirection: "column", gap: 4 }}>
+          {parsedDescription}
+        </View>
       </View>
     </View>
   </Card>
