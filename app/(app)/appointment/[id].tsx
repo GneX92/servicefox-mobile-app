@@ -300,7 +300,7 @@ export default function AppointmentDetailScreen() {
           </View>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <Text size="md" className="text-typography-800">Kommission:</Text>
-            <Text size="md" className="text-typography-800 font-semibold">{appointment?.reference}</Text>
+            <Text size="md" className="text-typography-800 font-semibold text-wrap">{appointment?.reference}</Text>
           </View>
         </View>
       </Row>

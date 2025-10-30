@@ -1,7 +1,7 @@
 import { Tabs } from "expo-router";
 import { List, LogOut, Settings } from "lucide-react-native";
-import React, { useState } from 'react';
-import { Pressable } from "react-native";
+import React, { useEffect, useRef, useState } from 'react';
+import { InteractionManager, Platform } from "react-native";
 import { Button, ButtonText } from '../../../components/ui/button';
 import { Modal, ModalBackdrop, ModalBody, ModalContent, ModalFooter, ModalHeader } from '../../../components/ui/modal';
 import { Text } from '../../../components/ui/text';
@@ -10,13 +10,31 @@ import { useAuth } from "../../../src/auth/AuthContext";
 export default function TabLayout() {
     const { signOut } = useAuth();
     const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+    const pendingInteraction = useRef<ReturnType<typeof InteractionManager.runAfterInteractions> | null>(null);
 
-    const openConfirm = () => setShowLogoutConfirm(true);
-    const closeConfirm = () => setShowLogoutConfirm(false);
+    const openConfirm = () => {
+        if (Platform.OS === 'android') {
+            confirmLogout();
+        } else {
+            setShowLogoutConfirm(true);
+        }
+    };
+    const closeConfirm = () => {
+        pendingInteraction.current?.cancel();
+        pendingInteraction.current = null;
+        setShowLogoutConfirm(false);
+    };
     const confirmLogout = async () => {
         closeConfirm();
         await signOut();
     };
+
+    useEffect(() => {
+        return () => {
+            pendingInteraction.current?.cancel();
+            pendingInteraction.current = null;
+        };
+    }, []);
 
     return (
         <>
@@ -42,22 +60,22 @@ export default function TabLayout() {
                     )
                 }} />
                 {/* The logout tab corresponds to app/(app)/(tabs)/logout.tsx */}
-                <Tabs.Screen name="logout" options={{
-                    title: 'Abmelden',
-                    tabBarButton: () => (
-                        <Pressable
-                            accessibilityRole="button"
-                            onPress={openConfirm}
-                            style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 6 }}
-                            hitSlop={8}
-                            accessibilityLabel="Abmelden"
-                        >
-                            <LogOut size={28} color="#d11a2a" />
-                        </Pressable>
-                    ),
-                }} />
+                <Tabs.Screen
+                    name="logout"
+                    options={{
+                        title: 'Abmelden',
+                        tabBarShowLabel: false,
+                        tabBarIcon: () => <LogOut size={28} color="#d11a2a" />,
+                    }}
+                    listeners={{
+                        tabPress: (event) => {                           
+                            event.preventDefault();
+                            openConfirm();
+                        },
+                    }}
+                />
             </Tabs>
-            <Modal isOpen={showLogoutConfirm} onClose={closeConfirm}>
+            <Modal isOpen={showLogoutConfirm} onClose={closeConfirm} closeOnOverlayClick={false}>
                 <ModalBackdrop />
                 <ModalContent className="max-w-[340px] items-stretch">
                     <ModalHeader className="mb-2">

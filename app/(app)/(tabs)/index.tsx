@@ -199,9 +199,9 @@ export default function AppointmentsScreen() {
     if (appointments.length === 0)
       return (
         <View style={styles.center}>
-          <Badge size="lg" variant="solid" action="muted">
-            <BadgeText>Keine Einsätze gefunden</BadgeText>
-            <BadgeIcon as={Ban} className="ml-2" color="#999999" size={20} />
+          <Badge size="lg" variant="solid" action="muted" style={{ padding: 15, flexDirection: 'row', alignItems: 'center', borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.8)' }}>
+            <BadgeText style={{ textAlign: 'center' }}>Keine Einsätze gefunden <br/> innerhalb der nächsten 7 Tage</BadgeText>
+            <BadgeIcon as={Ban} className="ml-2" color="red" size={24} />
           </Badge>
         </View>
       );
