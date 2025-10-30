@@ -200,7 +200,7 @@ export default function AppointmentsScreen() {
       return (
         <View style={styles.center}>
           <Badge size="lg" variant="solid" action="muted" style={{ padding: 15, flexDirection: 'row', alignItems: 'center', borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.8)' }}>
-            <BadgeText style={{ textAlign: 'center' }}>Keine Einsätze gefunden <br/> innerhalb der nächsten 7 Tage</BadgeText>
+            <BadgeText style={{ textAlign: 'center' }}>Keine Einsätze gefunden {"\n"} innerhalb der nächsten 7 Tage</BadgeText>
             <BadgeIcon as={Ban} className="ml-2" color="red" size={24} />
           </Badge>
         </View>
